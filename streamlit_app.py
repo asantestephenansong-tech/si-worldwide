@@ -99,3 +99,6 @@ if ok and txt.strip():
         ans = answer_any(q)
         st.session_state.messages.append({"role":"assistant","content":ans})
     st.rerun()
+# --- FOOTER ---
+st.divider()
+st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭 | Support: 0597527305")
