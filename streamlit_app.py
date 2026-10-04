@@ -12,9 +12,11 @@ except:
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "last_prompt" not in st.session_state:
+    st.session_state.last_prompt = ""
 
 st.title("SI Worldwide 🌍")
-st.caption("V5.0 - Voice Fix")
+st.caption("V5.1 - HD Images")
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -25,60 +27,56 @@ for m in st.session_state.messages:
 
 st.divider()
 
-st.write("🎤 Voice")
-audio = st.audio_input("Tap to record")
+audio = st.audio_input("🎤 Voice")
 voice_text = None
-
-# Backup uploader if mic fails
-up = st.file_uploader("Or upload voice if mic error", type=["mp3","wav","m4a","ogg"])
-
-audio_file = audio or up
-
-if audio_file:
+if audio:
     try:
         t = client.audio.transcriptions.create(
-            file=(audio_file.name, audio_file.getvalue()),
+            file=(audio.name, audio.getvalue()),
             model="whisper-large-v3",
             response_format="text"
         )
         voice_text = str(t)
-        st.success(f"You said: {voice_text}")
+        st.success(voice_text)
     except Exception as e:
-        st.error(f"Voice error: {e}")
+        st.error(str(e))
 
-text = st.text_input("Type here", placeholder="Ex: How do you say come in Ga?")
+text = st.text_input("Type here", placeholder="Ex: Picture of a vulture")
 btn = st.button("Send ➤", use_container_width=True)
 
 final = None
 if voice_text:
     final = voice_text
-elif btn and text:
+elif btn and text and text!= st.session_state.last_prompt:
     final = text
 
 if final:
-    fix = final.replace(" in G", " in Ga").replace(" in g", " in Ga").replace("Gaun","Ga")
+    st.session_state.last_prompt = final
+    fix = final.replace(" in G", " in Ga").replace("Gaun","Ga")
+
+    # AUTO FIX spelling for images
+    fix_low = fix.lower()
+    fix_low = fix_low.replace("volture","vulture").replace("volture","vulture")
+
     st.session_state.messages.append({"role":"user","content":fix})
 
-    low = fix.lower()
-    is_mean = "what is" in low or "meaning" in low
-    is_pic = ("draw" in low or "picture" in low or "photo" in low or "image" in low) and not is_mean
+    is_mean = "what is" in fix_low or "meaning" in fix_low
+    is_pic = ("draw" in fix_low or "picture" in fix_low or "photo" in fix_low or "image" in fix_low) and not is_mean
 
     if is_pic:
-        clean = low.replace("i want a picture of","").replace("picture of","").replace("draw","").strip()
+        clean = fix_low.replace("i want a picture of","").replace("picture of a","").replace("picture of","").replace("picture","").replace("draw","").replace("a","").strip()
         if clean == "": clean = fix
-        url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(clean) + "?width=1024&height=1024&nologo=true"
+        # Better spelling
+        clean = clean.replace("volture","vulture")
+        # HD FLUX model - much better quality!
+        url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(clean + " highly detailed, 8k, photorealistic") + "?model=flux&width=1024&height=1024&nologo=true&seed=42"
         st.session_state.messages.append({"role":"assistant","type":"image","content":url})
     else:
-        system = """You are SI Worldwide, Ghana AI.
-If user asks "G" means Ga language.
-Ga: Come=Ba, Come in=Ba mli, How are you=Atɛ o nɛ, Thank you=Oyiwala donu
-Twi: Come=Bra, Come in=Bra mu, How are you=Wo ho te sen
-Keep short."""
-
+        system = "You are SI. Answer short, clear, friendly. If Ga language, Ga=Twi Ghana."
         r = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role":"system","content":system},{"role":"user","content":fix}],
-            max_tokens=400
+            max_tokens=500
         )
         ans = r.choices[0].message.content
         st.session_state.messages.append({"role":"assistant","content":ans})
