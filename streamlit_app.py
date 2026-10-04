@@ -14,7 +14,7 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 st.title("SI Worldwide 🌍")
-st.caption("V7.2 - Never Empty")
+st.caption("V8.0 - Exact Answer Engine")
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -25,21 +25,17 @@ for m in st.session_state.messages:
 
 st.divider()
 
-# FULL GHANA DICT - NO EMPTY EVER
+# FAST DICT FOR GHANA
 DICT = {
-    "i am hungry": {"twi":"Ɛkɔm de me", "ga":"Gɔmɔ mi", "hausa":"Ina jin yunwa", "ewe":"Dɔ le vuum", "hindi":"Mujhe bhookh lagi hai", "german":"Ich habe Hunger"},
-    "i am thirsty": {"twi":"Nsukɔm de me", "ga":"Namɔ mi", "hausa":"Ina jin kishirwa", "german":"Ich habe Durst"},
-    "let's go home": {"twi":"Momma yɛnkɔ fie", "ga":"Tee wɔ shia", "hausa":"Mu je gida", "german":"Lass uns nach Hause gehen"},
-    "go and sleep": {"twi":"Kɔ bɛda", "ga":"Tee ya wɔ", "hausa":"Je ka yi bacci", "german":"Geh und schlaf", "hindi":"Jao aur so jao"},
-    "go home": {"twi":"Kɔ fie", "ga":"Tee shia", "hausa":"Je gida", "german":"Geh nach Hause", "hindi":"Ghar jao"},
-    "bring it": {"twi":"Fa bra", "ga":"Kɛ lɛ ba", "hausa":"Kawo shi", "german":"Bring es"},
-    "i love you": {"twi":"Me dɔ wo", "ga":"Mi sumɔ bo", "hausa":"Ina sonki/so", "german":"Ich liebe dich"},
-    "good morning": {"twi":"Maakye", "ga":"Atu", "hausa":"Barka da safiya", "german":"Guten Morgen"},
-    "thank you": {"twi":"Medaase", "ga":"Oyiwala dɔŋŋ", "hausa":"Na gode", "german":"Danke"},
+    "i am hungry": {"twi":"Ɛkɔm de me", "ga":"Gɔmɔ mi", "hausa":"Ina jin yunwa"},
+    "i am thirsty": {"twi":"Nsukɔm de me", "ga":"Namɔ mi", "hausa":"Ina jin kishirwa"},
+    "go and sleep": {"twi":"Kɔ bɛda", "ga":"Tee ya wɔ", "hausa":"Je ka yi bacci"},
+    "go home": {"twi":"Kɔ fie", "ga":"Tee shia", "hausa":"Je gida"},
+    "let's go home": {"twi":"Momma yɛnkɔ fie", "ga":"Tee wɔ shia", "hausa":"Mu je gida"},
 }
 
 with st.form("chat_form", clear_on_submit=True):
-    text = st.text_input("Type here", placeholder="Ex: I am hungry in Twi and Hausa")
+    text = st.text_input("Ask anything", placeholder="Ex: Who is Elon Musk? or Picture of a pilot")
     submitted = st.form_submit_button("Send ➤", use_container_width=True)
 
 if submitted and text.strip():
@@ -52,50 +48,77 @@ if submitted and text.strip():
 
     st.session_state.messages.append({"role":"user","content":q})
 
+    # CHECK GHANA DICT FIRST
     handled=False
     for phrase in sorted(DICT.keys(), key=len, reverse=True):
         if phrase in low:
             langs = DICT[phrase]
-            out = f"**'{phrase}'** means:\n\n"
-            count=0
-            if "twi" in low: out+=f"- **Twi**: **{langs.get('twi','')}** 🇬🇭\n"; count+=1
-            if re.search(r'\bga\b', low): out+=f"- **Ga**: **{langs.get('ga','')}** 🇬🇭\n"; count+=1
-            if "hausa" in low: out+=f"- **Hausa**: **{langs.get('hausa','')}** 🇳🇬\n"; count+=1
-            if "ewe" in low: out+=f"- **Ewe**: **{langs.get('ewe','')}** 🇬🇭\n"; count+=1
-            if "hindi" in low: out+=f"- **Hindi**: **{langs.get('hindi','')}** 🇮🇳\n"; count+=1
-            if "german" in low or "germany" in low: out+=f"- **German**: **{langs.get('german','')}** 🇩🇪\n"; count+=1
-            if count==0: # show Twi + Hausa by default if no lang matched? No, show all
-                for k,v in langs.items():
-                    out+=f"- {k.title()}: **{v}**\n"
+            out=f"**'{phrase}'** means:\n\n"
+            if "twi" in low: out+=f"- **Twi**: **{langs.get('twi','')}** 🇬🇭\n"
+            if re.search(r'\bga\b', low): out+=f"- **Ga**: **{langs.get('ga','')}** 🇬🇭\n"
+            if "hausa" in low: out+=f"- **Hausa**: **{langs.get('hausa','')}** 🇳🇬\n"
+            if out.count("-")==0:
+                for k,v in langs.items(): out+=f"- {k.title()}: **{v}**\n"
             st.session_state.messages.append({"role":"assistant","content":out})
             handled=True
             break
 
     if not handled:
-        is_image = low.startswith("picture") or "picture of" in low or low.startswith("draw")
-        if any(x in low for x in ["how to say","how do","who is","what is","translate"]):
+        is_image = ("picture of" in low or low.startswith("draw") or low.startswith("generate image"))
+        if any(x in low for x in ["how to say","what is","who is","how many","when","where","why","translate","meaning of"]):
             is_image=False
 
         if is_image:
-            clean = re.sub(r'picture of a|picture of|draw a|draw', '', low).strip().replace("volture","vulture")
-            if not clean: clean="vulture"
-            prompt = f"a real {clean}, photorealistic, accurate anatomy, 8k"
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&model=flux"
+            clean = re.sub(r'picture of a|picture of|draw a|draw|generate image of', '', low).strip()
+            clean = clean.replace("volture","vulture")
+            if not clean: clean="pilot"
+
+            # SAFE EXACT PROMPT
+            if "pilot" in clean:
+                prompt = "professional airplane pilot wearing full blue flight suit uniform inside airplane cockpit, smiling, SFW, photorealistic, 8k"
+            elif "fight" in clean:
+                prompt = "two boys boxing training with gloves in boxing ring, sports, safe, photorealistic"
+            else:
+                prompt = f"{clean}, photorealistic, 8k, accurate anatomy, SFW, modest clothing, professional photo"
+
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&model=flux&safe=true"
             st.session_state.messages.append({"role":"assistant","type":"image","content":url})
         else:
+            # EXACT ANSWER ENGINE - BIG MODEL
             try:
-                system = "You are SI Worldwide. You MUST answer. Translate Twi, Ga, Hausa, Ewe, German, Hindi. I am hungry in Twi=Ɛkɔm de me, Hausa=Ina jin yunwa. Never return empty."
+                system_prompt = """
+You are SI Worldwide Exact AI.
+RULES:
+1. Give EXACT, direct, factual answers. No empty, no maybe.
+2. If translation: Twi Ɛkɔm de me = I am hungry, Ga Gɔmɔ mi, Hausa Ina jin yunwa. Pilita = pilot in Twi.
+3. If who/what/when/where: give precise definition, dates, facts.
+4. Keep answer short, clear, with bullet points or table if needed.
+5. Never say you don't know. Always try to answer exactly.
+6. Support Twi, Ga, Hausa, Ewe, German, Hindi, French.
+"""
+                # Use BEST model for exact answers
                 r = client.chat.completions.create(
-                    model="openai/gpt-oss-20b",
-                    messages=[{"role":"system","content":system},{"role":"user","content":q}],
-                    max_tokens=800
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role":"system","content":system_prompt},
+                        {"role":"user","content":q}
+                    ],
+                    temperature=0.2,
+                    max_tokens=1000
                 )
                 ans = r.choices[0].message.content
-                if not ans or len(ans.strip())<2:
-                    ans = f"In **Twi**: Ɛkɔm de me 🇬🇭\nIn **Hausa**: Ina jin yunwa 🇳🇬\n\n(I am hungry)"
+                if not ans or len(ans.strip())<3:
+                    # fallback to smaller model
+                    r2 = client.chat.completions.create(
+                        model="openai/gpt-oss-20b",
+                        messages=[{"role":"user","content":q}],
+                        max_tokens=800
+                    )
+                    ans = r2.choices[0].message.content
+
                 st.session_state.messages.append({"role":"assistant","content":ans})
+
             except Exception as e:
-                # FALLBACK - NEVER EMPTY!
-                st.session_state.messages.append({"role":"assistant","content":f"**'I am hungry'**\n- **Twi**: **Ɛkɔm de me** 🇬🇭\n- **Hausa**: **Ina jin yunwa** 🇳🇬\n\nError fallback: {e}"})
+                st.session_state.messages.append({"role":"assistant","content":f"I tried to answer '{q}' but got error: {e}\n\nTry again - model is llama-3.3-70b."})
 
     st.rerun()
