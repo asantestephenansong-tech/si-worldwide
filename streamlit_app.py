@@ -15,17 +15,20 @@ if "messages" not in st.session_state:
 if "last_hash" not in st.session_state:
     st.session_state.last_hash = ""
 
-# FULL PHRASE DICTIONARY
+# V6.2 DICT - SORTED LONGEST FIRST
 DICT = {
-    "bring it": {"twi":"Fa bra", "ga":"Kɛ lɛ ba", "ewe":"Tsɔe vɛ", "french":"Apporte-le"},
-    "go home": {"twi":"Kɔ fie", "ga":"Tee shia", "ewe":"Yi afeme", "french":"Rentre à la maison"},
-    "come": {"twi":"Bra", "ga":"Ba", "ewe":"Va", "french":"Viens"},
-    "go": {"twi":"Kɔ", "ga":"Tee", "ewe":"Yi", "french":"Va"},
-    "i love you": {"twi":"Me dɔ wo", "ga":"Mi sumɔ bo", "ewe":"Melɔ̃ wò", "french":"Je t'aime"},
+    "go and sleep": {"twi":"Kɔ bɛda", "ga":"Tee ya wɔ", "ewe":"Yi dɔ alɔ", "hindi":"Jao aur so jao", "german":"Geh und schlaf", "french":"Va dormir"},
+    "go to sleep": {"twi":"Kɔ bɛda", "ga":"Tee ya wɔ", "ewe":"Yi dɔ alɔ", "hindi":"Sone jao", "german":"Geh schlafen", "french":"Va dormir"},
+    "go home": {"twi":"Kɔ fie", "ga":"Tee shia", "ewe":"Yi afeme", "hindi":"Ghar jao", "german":"Geh nach Hause", "french":"Rentre à la maison"},
+    "bring it": {"twi":"Fa bra", "ga":"Kɛ lɛ ba", "ewe":"Tsɔe vɛ", "hindi":"Ise lao", "german":"Bring es", "french":"Apporte-le"},
+    "i love you": {"twi":"Me dɔ wo", "ga":"Mi sumɔ bo", "ewe":"Melɔ̃ wò", "hindi":"Main tumse pyar karta hoon", "german":"Ich liebe dich", "french":"Je t'aime"},
+    "come": {"twi":"Bra", "ga":"Ba", "ewe":"Va", "hindi":"Aao", "german":"Komm", "french":"Viens"},
+    "go": {"twi":"Kɔ", "ga":"Tee", "ewe":"Yi", "hindi":"Jao", "german":"Geh", "french":"Va"},
+    "sleep": {"twi":"Da", "ga":"Wɔ", "ewe":"Dɔ alɔ", "hindi":"So jao", "german":"Schlaf", "french":"Dors"},
 }
 
 st.title("SI Worldwide 🌍")
-st.caption("V6.0 - HD Real")
+st.caption("V6.2 - Phrase Fix")
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -48,7 +51,7 @@ if audio:
         except Exception as e:
             st.error(str(e))
 
-text = st.text_input("Type here", key="input_txt", placeholder='Ex: go home in Twi and Ewe')
+text = st.text_input("Type here", key="input_txt", placeholder='go and sleep in hindi and german')
 btn = st.button("Send ➤", use_container_width=True)
 
 final = None
@@ -58,54 +61,77 @@ if voice_text and audio_hash:
     final_hash = audio_hash
 elif btn and text.strip():
     final = text.strip()
-    final_hash = hashlib.md5((final + str(int(time.time()/3))).encode()).hexdigest()
+    final_hash = hashlib.md5((final + str(time.time())).encode()).hexdigest()
 
 if final and final_hash:
-    if st.session_state.last_hash == hashlib.md5(final.encode()).hexdigest() and not audio_hash:
-        # allow same phrase after 2 sec but block instant double rerun
-        pass
     st.session_state.last_hash = hashlib.md5(final.encode()).hexdigest()
-
     st.session_state.messages.append({"role":"user","content":final})
-    low = final.lower()
+    low = final.lower().replace('"',' ').replace("'"," ").strip()
 
-    # CHECK DICTIONARY FOR PHRASES
-    handled = False
-    for phrase, langs in DICT.items():
+    # EXTRACT PHRASE - Look for what is inside quotes or longest match
+    # Try to find phrase to translate
+    target_phrase = None
+    # Sort keys by length longest first!
+    for phrase in sorted(DICT.keys(), key=len, reverse=True):
         if phrase in low:
-            out = ""
-            if "twi" in low: out += f"In **Twi**, '{phrase}' is: **{langs.get('twi','')}** 🇬🇭\n\n"
-            if "ga" in low: out += f"In **Ga**, '{phrase}' is: **{langs.get('ga','')}** 🇬🇭\n\n"
-            if "ewe" in low: out += f"In **Ewe**, '{phrase}' is: **{langs.get('ewe','')}** 🇬🇭\n\n"
-            if "french" in low: out += f"In **French**, '{phrase}' is: **{langs.get('french','')}**\n\n"
-            if out=="":
-                # If no language specified, show all Ghana
-                out = f"**'{phrase}'**\n- Twi: **{langs.get('twi')}**\n- Ga: **{langs.get('ga')}**\n- Ewe: **{langs.get('ewe')}**\n- French: **{langs.get('french')}**"
-            st.session_state.messages.append({"role":"assistant","content":out})
-            handled = True
+            target_phrase = phrase
             break
 
-    if not handled:
-        is_image = low.startswith("picture") or low.startswith("draw") or "picture of" in low or "generate image" in low
-        if low.startswith("who is") or low.startswith("what is") or "how do you say" in low or "how to say" in low or "how many" in low:
-            is_image = False
+    handled = False
+    if target_phrase:
+        langs = DICT[target_phrase]
+        out = f"**'{target_phrase}'** means:\n\n"
+        has_lang = False
+        if "twi" in low:
+            out += f"- **Twi**: **{langs.get('twi')}** 🇬🇭\n"
+            has_lang = True
+        if "ga" in low and "germany" not in low.split("ga")[0][-10:]: # avoid ga in germany confusion
+            # better check
+            if re.search(r'\bga\b', low):
+                out += f"- **Ga**: **{langs.get('ga')}** 🇬🇭\n"
+                has_lang = True
+        if "ewe" in low:
+            out += f"- **Ewe**: **{langs.get('ewe')}** 🇬🇭\n"
+            has_lang = True
+        if "hindi" in low:
+            out += f"- **Hindi**: **{langs.get('hindi')}** 🇮🇳\n"
+            has_lang = True
+        if "german" in low or "germany" in low:
+            out += f"- **German**: **{langs.get('german')}** 🇩🇪\n"
+            has_lang = True
+        if "french" in low:
+            out += f"- **French**: **{langs.get('french')}** 🇫🇷\n"
+            has_lang = True
 
+        if not has_lang:
+            # show all
+            for k,v in langs.items():
+                out += f"- {k.title()}: **{v}**\n"
+
+        st.session_state.messages.append({"role":"assistant","content":out})
+        handled = True
+
+    if not handled:
+        is_image = low.startswith("picture") or low.startswith("draw") or "picture of" in low
+        if any(x in low for x in ["who is","what is","how do you say","how to say","how many","translate"]):
+            is_image = False
         if is_image:
             clean = re.sub(r'picture of a|picture of|draw a|draw|image of', '', low).strip().replace("volture","vulture")
             if not clean: clean = "vulture"
-            # REAL VULTURE PROMPT - FIXES DONUT WING
-            prompt = f"a real {clean} bird, accurate anatomy, two wings only, realistic feathers, sitting on tree stump, national geographic photo, 8k, photorealistic"
-            # FLUX model = realistic, no deform
+            prompt = f"a real {clean}, accurate anatomy, photorealistic, national geographic, 8k"
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&model=flux&enhance=true&seed={int(time.time())}"
             st.session_state.messages.append({"role":"assistant","type":"image","content":url})
         else:
-            system = "You are SI Worldwide Ghana AI. You know Twi, Ga, Ewe, French, Hindi. Twi: go home=Kɔ fie, Ga: Tee shia, Ewe: Yi afeme. Answer short, never empty."
-            r = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[{"role":"system","content":system},{"role":"user","content":final}],
-                max_tokens=700
-            )
-            ans = r.choices[0].message.content or "In Twi: Kɔ fie, In Ewe: Yi afeme"
-            st.session_state.messages.append({"role":"assistant","content":ans})
+            system = "You are SI Worldwide, expert translator Twi, Ga, Ewe, Hindi, German, French. If user says Germany, means German language. Never answer only 'go' when user says 'go and sleep'. Always translate full phrase."
+            try:
+                r = client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[{"role":"system","content":system},{"role":"user","content":final}],
+                    max_tokens=800
+                )
+                ans = r.choices[0].message.content
+                st.session_state.messages.append({"role":"assistant","content":ans})
+            except Exception as e:
+                st.session_state.messages.append({"role":"assistant","content":f"Error: {e}"})
 
     st.rerun()
