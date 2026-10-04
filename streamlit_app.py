@@ -107,7 +107,8 @@ if final_prompt:
             if not clean_prompt:
                 clean_prompt = final_prompt
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(clean_prompt)}?width=1024&height=1024&seed=7&nologo=true"
-            st.image(url)
+                        st.image(url, use_container_width=True)
+            st.caption(f"🎨 {clean_prompt}")
             st.session_state.messages.append({"role": "assistant", "type": "image", "content": url})
         else:
             try:
