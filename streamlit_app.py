@@ -16,11 +16,8 @@ def get_anyone_photo(query):
     q = query.strip()
     low = q.lower()
     safe_q = low.replace("girls","young women")
-
     if any(x in low for x in ["nude","naked","sex","porn"]):
         return None, "Cannot provide nude images."
-
-    # UNIVERSAL SEARCH - Works for ANYONE (mbape, vulture, Mahama)
     try:
         search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(q)}&format=json&srlimit=1"
         r = requests.get(search_api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
@@ -33,44 +30,40 @@ def get_anyone_photo(query):
                 if "thumbnail" in p:
                     return p["thumbnail"]["source"], f"Real photo of {title} - Wikipedia"
     except: pass
-
-    try:
-        thumb_api = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(q)}&prop=pageimages&format=json&pithumbsize=800"
-        r = requests.get(thumb_api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
-        for p in r.get("query",{}).get("pages",{}).values():
-            if "thumbnail" in p:
-                return p["thumbnail"]["source"], f"Real Wikipedia photo of {q.title()}"
-    except: pass
-
-    prompt = f"real photograph of {safe_q}, fully clothed, professional, 8k, accurate"
+    prompt = f"real photograph of {safe_q}, fully clothed, professional, 8k"
     url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=800&height=600&nologo=true&model=turbo&safe=true&seed={abs(hash(safe_q))%9999}"
     return url, f"Photo of {q.title()}"
 
 def answer_any(question):
-    models = ["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-120b","gemma2-9b-it"]
-    system = """You are SI Worldwide. Current date: May 2026.
-CRITICAL FACTS (2026):
-- Kylian Mbappe plays for Real Madrid since July 2024 (not PSG)
-- Lionel Messi plays for Inter Miami
-- Cristiano Ronaldo plays for Al-Nassr
-- John Mahama is President of Ghana (since Jan 2025)
-- Always give current 2026 info, not old.
-Answer short, exact, current."""
+    models = ["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-120b"]
+    # FORCE 2026 TRUE FACTS - Models are outdated, so we override!
+    system = """Current date is May 2026. You MUST use these TRUE 2026 facts, never old info:
+
+- USA President: Donald Trump (47th President, inaugurated Jan 20 2025, won 2024 election). VP: JD Vance. NOT Biden.
+- Ghana President: John Dramani Mahama (since Jan 7 2025)
+- Pope: Pope Leo XIV (Robert Prevost), elected May 8 2025. Pope Francis died April 21 2025.
+- UK PM: Keir Starmer
+- Kylian Mbappe: Real Madrid (since July 2024)
+- Messi: Inter Miami, Ronaldo: Al-Nassr
+- Russia-Ukraine war still ongoing in 2026, Israel-Gaza conflict, Sudan civil war.
+
+If asked about president/pope, use above. Be short and exact."""
+
     for model in models:
         try:
             r = client.chat.completions.create(
                 model=model,
                 messages=[{"role":"system","content":system},{"role":"user","content":question}],
-                temperature=0.2, max_tokens=1000
+                temperature=0.1, max_tokens=800
             )
             ans = r.choices[0].message.content
-            if ans and len(ans)>10:
+            if ans and len(ans)>5:
                 return ans
         except: continue
-    return "Please ask again with more detail."
+    return "Try asking again more specifically."
 
 st.title("SI Worldwide 🌍")
-st.caption("V10.1 - Mbappe Real + 2026 Answers")
+st.caption("V10.2 - 2026 Real Facts Fixed")
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -81,7 +74,7 @@ for m in st.session_state.messages:
 
 st.divider()
 with st.form("chat_form", clear_on_submit=True):
-    txt = st.text_input("Ask", placeholder="Picture of anyone, any question...")
+    txt = st.text_input("Ask", placeholder="Who is US president, Pope, picture of anyone...")
     ok = st.form_submit_button("Send ➤", use_container_width=True)
 
 if ok and txt.strip():
@@ -90,14 +83,12 @@ if ok and txt.strip():
     if st.session_state.messages and st.session_state.messages[-1].get("role")=="user" and st.session_state.messages[-1]["content"]==q:
         st.stop()
     st.session_state.messages.append({"role":"user","content":q})
-
     is_pic = any(w in low for w in ["picture","photo","image","draw","show"])
-    if any(w in low for w in ["which","what is","who","how","when","where","why","can a","difference","meaning"]):
+    if any(w in low for w in ["who is","what is","which","what about","how","when","where"]):
         if not low.strip().startswith(("picture","photo","image")):
             is_pic=False
     if low.strip().startswith(("picture","photo","image")):
         is_pic=True
-
     if is_pic:
         clean = re.sub(r'picture of a|picture of|photo of|image of|picture|photo|image|draw|show me', '', low, flags=re.I).strip()
         if not clean: clean=q
