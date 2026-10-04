@@ -21,48 +21,109 @@ def clean_text(t):
     t = re.sub(r'https?://\S+', ' ', t)
     return t[:400].replace("'", "").replace('"', '').replace("\n", " ")
 
-ALL_LANGS = [
-    "Auto-detect (ANY language)",
-    "English", "Twi (Akan)", "Ga", "Ewe", "Hausa", "Fante",
-    "French", "Spanish", "Portuguese", "German", "Italian", "Dutch", "Russian",
-    "Arabic", "Hindi", "Chinese", "Japanese", "Korean", "Thai", "Vietnamese", "Indonesian",
-    "Turkish", "Swahili", "Yoruba", "Igbo", "Zulu", "Amharic", "Somali", "Pidgin"
-]
-
-LANG_VOICE = {
-    "English": "en-US",
-    "Twi (Akan)": "en-GH",
-    "Ga": "en-GH",
-    "Ewe": "en-GH",
-    "Hausa": "en-NG",
-    "French": "fr-FR",
-    "Spanish": "es-ES",
-    "Portuguese": "pt-PT",
-    "German": "de-DE",
-    "Russian": "ru-RU",
-    "Arabic": "ar-SA",
-    "Hindi": "hi-IN",
-    "Chinese": "zh-CN",
-    "Japanese": "ja-JP",
-    "Korean": "ko-KR",
-    "Swahili": "sw-KE",
-    "Yoruba": "yo-NG"
-}
+ALL_LANGS = ["Auto-detect (ANY language)","English","Twi (Akan)","Ga","Ewe","Hausa","Fante","French","Spanish","Portuguese","German","Italian","Dutch","Russian","Arabic","Hindi","Chinese","Japanese","Korean","Thai","Vietnamese","Indonesian","Turkish","Swahili","Yoruba","Igbo","Zulu","Pidgin"]
+LANG_VOICE = {"English":"en-US","Twi (Akan)":"en-GH","Ga":"en-GH","Ewe":"en-GH","Hausa":"en-NG","French":"fr-FR","Spanish":"es-ES","German":"de-DE","Russian":"ru-RU","Arabic":"ar-SA","Hindi":"hi-IN","Chinese":"zh-CN","Japanese":"ja-JP"}
 
 with st.sidebar:
     st.title("🌍 SI Controls")
-    lang = st.selectbox("Answer Language", ALL_LANGS, index=0, key="lang_v45")
-    speak = st.checkbox("🔊 Speak Answer", value=True, key="speak_v45")
-    st.divider()
-    if st.button("🗑️ Clear Chat", key="clear_v45"):
+    lang = st.selectbox("Answer Language", ALL_LANGS, index=0)
+    speak = st.checkbox("🔊 Speak Answer", value=True)
+    if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.session_state.last_voice_id = None
         st.rerun()
 
 st.title("SI Worldwide 🌍")
-st.caption("V4.5 - All Languages + Image Fix")
+st.caption("V4.6 - Stable Send")
 
+# Show history
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         if m.get("type") == "image":
-            st
+            st.image(m["content"])
+        else:
+            st.markdown(m["content"])
+
+st.divider()
+
+# 1. VOICE - top
+st.write("🎤 Voice")
+audio = st.audio_input("Tap to record", key="audio_v46")
+voice_prompt = None
+if audio:
+    audio_id = getattr(audio, 'file_id', str(len(audio.getvalue())))
+    if audio_id != st.session_state.last_voice_id:
+        with st.spinner("Listening..."):
+            try:
+                tr = client.audio.transcriptions.create(
+                    file=(audio.name, audio.getvalue()),
+                    model="whisper-large-v3",
+                    prompt="Twi Ga Ewe Hausa English French Arabic Hindi Chinese Spanish",
+                    response_format="text"
+                )
+                voice_prompt = tr
+                st.session_state.last_voice_id = audio_id
+                st.success(f"You said: {tr}")
+            except Exception as e:
+                st.error(f"{e}")
+
+# 2. TEXT - ALWAYS VISIBLE text_input + button
+st.write("💬 Type")
+col1, col2 = st.columns([4,1])
+with col1:
+    text_prompt = st.text_input("Type in ANY language", placeholder="Example: picture of a motorbike", key="text_v46", label_visibility="collapsed")
+with col2:
+    send_btn = st.button("Send ➤", use_container_width=True, key="send_v46")
+
+final_prompt = None
+if voice_prompt:
+    final_prompt = voice_prompt
+elif send_btn and text_prompt:
+    final_prompt = text_prompt
+elif text_prompt and st.session_state.get("last_text") != text_prompt:
+    # Allow Enter key
+    final_prompt = text_prompt
+
+if final_prompt:
+    st.session_state["last_text"] = final_prompt
+    st.session_state.messages.append({"role": "user", "content": final_prompt})
+
+    with st.chat_message("user"):
+        st.markdown(final_prompt)
+
+    with st.chat_message("assistant"):
+        low = final_prompt.lower()
+        is_meaning_question = "what is" in low or "meaning" in low or "translate" in low or "means" in low
+        is_image_request = ("draw" in low or "picture" in low or "photo" in low or "image" in low)
+        is_image = is_image_request and not is_meaning_question
+
+        if lang.startswith("Auto"):
+            lang_inst = "Detect language and answer in SAME language."
+        else:
+            lang_inst = f"Respond ONLY in {lang}."
+
+        if is_image:
+            clean_prompt = low.replace("i want a picture of","").replace("i want","").replace("picture of","").replace("a picture","").replace("draw","").strip()
+            if not clean_prompt:
+                clean_prompt = final_prompt
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(clean_prompt)}?width=1024&height=1024&seed=7&nologo=true"
+            st.image(url)
+            st.session_state.messages.append({"role": "assistant", "type": "image", "content": url})
+        else:
+            try:
+                r = client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[{"role": "system", "content": f"You are SI. {lang_inst} Short plain text no **."}] + [{"role": x["role"], "content": x["content"]} for x in st.session_state.messages if x.get("type")!="image"][-6:],
+                    max_tokens=600
+                )
+                ans = r.choices[0].message.content
+                st.markdown(ans)
+                if speak:
+                    vcode = LANG_VOICE.get(lang, "en-US")
+                    js = f"<script>var m=new SpeechSynthesisUtterance('{clean_text(ans)}');m.lang='{vcode}';speechSynthesis.speak(m);</script>"
+                    components.html(js, height=0)
+                st.session_state.messages.append({"role": "assistant", "content": ans})
+            except Exception as e:
+                st.error(f"Error: {e}")
+    # Clear text box after send
+    st.rerun()
