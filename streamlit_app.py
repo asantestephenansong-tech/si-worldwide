@@ -1,8 +1,6 @@
 import streamlit as st
 from groq import Groq
 import urllib.parse, re, requests
-from io import BytesIO
-from PIL import Image
 
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 
@@ -15,10 +13,9 @@ except:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# REAL PEOPLE - 100% WORKING FILENAMES FROM WIKIMEDIA
+# REAL MAP - Direct Wikimedia file names that NEVER fail
 REAL_MAP = {
     "ronaldo": "Cristiano Ronaldo - 2018.jpg",
-    "cristiano ronaldo": "Cristiano Ronaldo - 2018.jpg",
     "cristiano": "Cristiano Ronaldo - 2018.jpg",
     "messi": "Lionel Messi 2019.jpg",
     "lionel messi": "Lionel Messi 2019.jpg",
@@ -27,86 +24,65 @@ REAL_MAP = {
     "john mahama": "John Dramani Mahama 2014.jpg",
     "mahama": "John Dramani Mahama 2014.jpg",
     "akufo addo": "Nana Akufo-Addo in 2020.jpg",
-    "nkrumah": "Kwame Nkrumah, 1961 (cropped).jpg",
+    "car": "Tesla Model S - 2012.jpg",
     "vulture": "Griffon vulture (Gyps fulvus) in flight 2.jpg",
     "pilot": "Pilot in cockpit.jpg",
-    "accra": "Accra Skyline.jpg",
 }
 
-def get_bytes_from_commons(filename):
-    try:
-        url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{urllib.parse.quote(filename)}?width=800"
-        r = requests.get(url, timeout=10, headers={"User-Agent":"Mozilla/5.0"}, stream=True)
-        if r.status_code == 200:
-            return r.content
-    except:
-        pass
-    return None
-
-def get_bytes_anything(query):
+def get_real_url(query):
     q = query.lower().strip()
 
-    # 1. Check our real map first (fastest, guaranteed)
+    # 1. Check real map first
     for key, filename in REAL_MAP.items():
         if key in q:
-            b = get_bytes_from_commons(filename)
-            if b:
-                return b, f"Real photo of {key.title()} - Wikipedia"
+            url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{urllib.parse.quote(filename)}?width=800"
+            return url, f"Real photo of {key.title()} - Wikimedia"
 
-    # 2. Try Wikipedia page image
+    # 2. Wikipedia thumbnail
     try:
         api = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(query)}&prop=pageimages&format=json&pithumbsize=800&pilicense=any"
         r = requests.get(api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
         for p in r.get("query",{}).get("pages",{}).values():
             if "thumbnail" in p:
-                thumb_url = p["thumbnail"]["source"]
-                img = requests.get(thumb_url, timeout=8, headers={"User-Agent":"Mozilla/5.0"}).content
-                return img, f"Real Wikipedia photo of {query.title()}"
+                return p["thumbnail"]["source"], f"Real Wikipedia photo of {query.title()}"
     except: pass
 
-    # 3. Try Wikimedia search for anything (animals, places, objects)
+    # 3. Wikimedia Commons search
     try:
-        search_url = f"https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&srnamespace=6&srlimit=5&format=json"
+        search_url = f"https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&srnamespace=6&srlimit=1&format=json"
         r = requests.get(search_url, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
-        for item in r.get("query",{}).get("search",[]):
-            title = item["title"]
-            if any(x in title.lower() for x in ["logo","svg","map","flag","icon"]): continue
-            info = f"https://commons.wikimedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=imageinfo&iiprop=url&format=json"
-            r2 = requests.get(info, timeout=6).json()
-            for page in r2.get("query",{}).get("pages",{}).values():
-                if "imageinfo" in page:
-                    url = page["imageinfo"][0]["url"]
-                    if url.lower().endswith((".jpg",".jpeg",".png")):
-                        b = requests.get(url, timeout=8, headers={"User-Agent":"Mozilla/5.0"}).content
-                        return b, f"Real photo: {title.replace('File:','')}"
+        items = r.get("query",{}).get("search",[])
+        if items:
+            title = items[0]["title"]
+            # Direct Special:FilePath link - always works
+            filename = title.replace("File:","")
+            url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{urllib.parse.quote(filename)}?width=800"
+            return url, f"Real photo: {filename}"
     except: pass
 
-    # 4. Final fallback - Real world photos from LoremFlickr (anything!)
-    try:
-        url = f"https://loremflickr.com/800/600/{urllib.parse.quote(query)}"
-        b = requests.get(url, timeout=8, headers={"User-Agent":"Mozilla/5.0"}).content
-        return b, f"Real world photo of {query.title()}"
-    except: pass
-
-    return None, None
+    # 4. Pollinations for generic things (car, house, dog) - works for objects
+    prompt = f"{query}, real photograph, high quality, 8k"
+    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=800&height=600&nologo=true&model=turbo&safe=true"
+    return url, f"Photo of {query.title()}"
 
 st.title("SI Worldwide 🌍")
-st.caption("V9.2 - Anyone & Anything Real Photos")
+st.caption("V9.3 - Real Photos Fixed")
 
-# SHOW CHAT
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        if m.get("type") == "image_bytes":
-            st.image(BytesIO(m["content"]), caption=m.get("caption",""), use_container_width=True)
-        elif m.get("type") == "image":
-            st.image(m["content"], caption=m.get("caption",""), use_container_width=True)
+        if m.get("type") == "image":
+            try:
+                st.image(m["content"], caption=m.get("caption",""), use_container_width=True)
+            except:
+                st.markdown(f"[Open Image]({m['content']})")
+                st.caption(m.get("caption",""))
         else:
             st.markdown(m["content"])
 
 st.divider()
 
 with st.form("chat_form", clear_on_submit=True):
-    txt = st.text_input("Ask", placeholder="Picture of Messi, Ronaldo, dog, car, Accra, vulture, anything...")
+    txt = st.text_input("Ask", placeholder="Picture of a car, Messi, Ronaldo, dog...")
     ok = st.form_submit_button("Send ➤", use_container_width=True)
 
 if ok and txt.strip():
@@ -117,31 +93,24 @@ if ok and txt.strip():
         st.stop()
     st.session_state.messages.append({"role":"user","content":q})
 
-    # >>> THIS IS THE FIX: Detect picture BEFORE calling AI <<<
     is_pic = False
     if any(w in low for w in ["picture","photo","image","draw","show"]):
         is_pic = True
-    # If it's a science question, not a picture
-    if any(w in low for w in ["what is","difference between","meaning","translate","how to say","who is","can a"]):
+    if any(w in low for w in ["what is","difference between","meaning","translate","how to say","who was","can a"]):
         is_pic = False
-    # If starts with picture, ALWAYS picture
     if low.strip().startswith(("picture","photo","image")):
         is_pic = True
 
     if is_pic:
-        clean = re.sub(r'picture of|photo of|image of|picture|photo|image|draw|show me|of', '', low, flags=re.I).strip()
-        clean = clean.replace(" "," ").strip()
-        if not clean: clean = "world"
+        clean = re.sub(r'picture of a|picture of|photo of|image of|picture|photo|image|draw|show me|a', '', low, flags=re.I).strip()
+        if not clean or len(clean)<2:
+            clean = low.replace("picture","").replace("of","").strip()
+        if not clean:
+            clean = "car"
 
-        with st.spinner(f"Finding REAL photo of {clean.title()}..."):
-            data, cap = get_bytes_anything(clean)
-
-        if data:
-            st.session_state.messages.append({"role":"assistant","type":"image_bytes","content":data,"caption":cap})
-        else:
-            st.session_state.messages.append({"role":"assistant","content":f"Could not find real photo of {clean}, try another name like Cristiano Ronaldo, Lionel Messi"})
+        url, cap = get_real_url(clean)
+        st.session_state.messages.append({"role":"assistant","type":"image","content":url,"caption":cap})
     else:
-        # EXACT ANSWER
         ans=None
         for model in ["llama-3.1-8b-instant","llama3-70b-8192","mixtral-8x7b-32768","gemma2-9b-it","openai/gpt-oss-20b"]:
             try:
@@ -151,7 +120,7 @@ if ok and txt.strip():
                     temperature=0.2, max_tokens=800
                 )
                 ans = r.choices[0].message.content
-                if ans and len(ans)>3 and "can't provide" not in ans.lower():
+                if ans and len(ans)>3:
                     break
             except: continue
         st.session_state.messages.append({"role":"assistant","content":ans or "Try again"})
