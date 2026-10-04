@@ -1,13 +1,13 @@
 import streamlit as st
 from groq import Groq
-import urllib.parse
+import urllib.parse, re
 
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Add GROQ_API_KEY in Secrets")
+    st.error("Add GROQ_API_KEY")
     st.stop()
 
 if "messages" not in st.session_state:
@@ -16,7 +16,7 @@ if "last_prompt" not in st.session_state:
     st.session_state.last_prompt = ""
 
 st.title("SI Worldwide 🌍")
-st.caption("V5.1 - HD Images")
+st.caption("V5.2 - Smart Detector")
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -26,22 +26,17 @@ for m in st.session_state.messages:
             st.markdown(m["content"])
 
 st.divider()
-
 audio = st.audio_input("🎤 Voice")
 voice_text = None
 if audio:
     try:
-        t = client.audio.transcriptions.create(
-            file=(audio.name, audio.getvalue()),
-            model="whisper-large-v3",
-            response_format="text"
-        )
+        t = client.audio.transcriptions.create(file=(audio.name, audio.getvalue()), model="whisper-large-v3", response_format="text")
         voice_text = str(t)
         st.success(voice_text)
     except Exception as e:
         st.error(str(e))
 
-text = st.text_input("Type here", placeholder="Ex: Picture of a vulture")
+text = st.text_input("Type here", placeholder="Ex: Picture of a vulture or Who is a photographer?")
 btn = st.button("Send ➤", use_container_width=True)
 
 final = None
@@ -52,30 +47,34 @@ elif btn and text and text!= st.session_state.last_prompt:
 
 if final:
     st.session_state.last_prompt = final
-    fix = final.replace(" in G", " in Ga").replace("Gaun","Ga")
+    st.session_state.messages.append({"role":"user","content":final})
+    low = final.lower()
 
-    # AUTO FIX spelling for images
-    fix_low = fix.lower()
-    fix_low = fix_low.replace("volture","vulture").replace("volture","vulture")
+    # SMART IMAGE DETECTOR - FIX photographer bug
+    # Only trigger if starts with picture/draw OR has "picture of" etc, NOT if word contains photo
+    is_image = False
+    if re.search(r'\b(picture of|draw|generate image|create image|make an image)\b', low):
+        is_image = True
+    # Also allow "picture of a vulture" but NOT "photographer"
+    if low.startswith("picture") or low.startswith("draw") or low.startswith("image of"):
+        is_image = True
 
-    st.session_state.messages.append({"role":"user","content":fix})
+    # Don't trigger for who is a photographer / philosopher / etc
+    if "who is" in low or "what is" in low or "meaning" in low:
+        is_image = False
 
-    is_mean = "what is" in fix_low or "meaning" in fix_low
-    is_pic = ("draw" in fix_low or "picture" in fix_low or "photo" in fix_low or "image" in fix_low) and not is_mean
-
-    if is_pic:
-        clean = fix_low.replace("i want a picture of","").replace("picture of a","").replace("picture of","").replace("picture","").replace("draw","").replace("a","").strip()
-        if clean == "": clean = fix
-        # Better spelling
+    if is_image:
+        clean = re.sub(r'picture of a|picture of|draw a|draw|image of', '', low).strip()
         clean = clean.replace("volture","vulture")
-        # HD FLUX model - much better quality!
-        url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(clean + " highly detailed, 8k, photorealistic") + "?model=flux&width=1024&height=1024&nologo=true&seed=42"
+        if clean == "": clean = "vulture"
+        # Use turbo model - fastest and stable, no flux overload
+        url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(clean) + "?width=1024&height=1024&nologo=true&model=turbo"
         st.session_state.messages.append({"role":"assistant","type":"image","content":url})
     else:
-        system = "You are SI. Answer short, clear, friendly. If Ga language, Ga=Twi Ghana."
+        system = "You are SI Worldwide. Answer short and clear. If Ga language: Come=Ba."
         r = client.chat.completions.create(
             model="openai/gpt-oss-20b",
-            messages=[{"role":"system","content":system},{"role":"user","content":fix}],
+            messages=[{"role":"system","content":system},{"role":"user","content":final}],
             max_tokens=500
         )
         ans = r.choices[0].message.content
