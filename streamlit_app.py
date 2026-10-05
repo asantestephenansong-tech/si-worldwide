@@ -101,4 +101,12 @@ if ok and txt.strip():
     st.rerun()
 # --- FOOTER ---
 st.divider()
-st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭 | Support: 0597527305")
+st.markdown(f"""
+<a href="https://wa.me/?text=Try%20my%20AI%20-%20SI%20Worldwide%20AI%20answers%20anything%20about%20Ghana!%20https://si-worldwide.streamlit.app" 
+target="_blank">
+<button style="background-color:#25D366;color:white;padding:10px 20px;border:none;border-radius:8px;font-weight:bold; width:100%;">
+Share on WhatsApp 📲
+</button>
+</a>
+""", unsafe_allow_html=True)
+st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭")
