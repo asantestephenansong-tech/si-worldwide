@@ -68,7 +68,7 @@ st.caption("V10.2 - 2026 Real Facts Fixed")
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         if m.get("type") == "image":
-            st.image(m["content"], caption=m.get("caption",""), use_container_width=True)
+            st.image(m["content"], caption=m.get("caption"), width="stretch")
         else:
             st.markdown(m["content"])
 
