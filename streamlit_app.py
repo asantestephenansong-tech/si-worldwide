@@ -75,7 +75,7 @@ for m in st.session_state.messages:
 st.divider()
 with st.form("chat_form", clear_on_submit=True):
     txt = st.text_input("Ask", placeholder="Who is US president, Pope, picture of anyone...")
-    ok = st.form_submit_button("Send ➤", use_container_width=True)
+    ok = st.form_submit_button("Send ➤", width="stretch")
 
 if ok and txt.strip():
     q = txt.strip()
