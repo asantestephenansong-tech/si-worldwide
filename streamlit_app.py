@@ -102,8 +102,7 @@ if ok and txt.strip():
 # --- FOOTER ---
 st.divider()
 st.markdown(f"""
-<a href="https://wa.me/?text=Try%20my%20AI%20-%20SI%20Worldwide%20AI%20knows%20US%20President,%20Pope,%20pictures%20of%20anyone,%20and%20Ghana%20facts!%20%20https://si-worldwide.streamlit.app" 
-target="_blank">
+<a href="https://wa.me/?text=Try%20my%20AI%20-%20Ask%20me%20anything!%20Presidents,%20popes,%20pictures,%20science,%20maths,%20bible,%20and%20facts%20https://si-worldwide.streamlit.apptarget="_blank">
 <button style="background-color:#25D366;color:white;padding:10px 20px;border:none;border-radius:8px;font-weight:bold; width:100%;">
 Share on WhatsApp 📲
 </button>
