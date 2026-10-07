@@ -110,8 +110,13 @@ Share on WhatsApp 📲
 """, unsafe_allow_html=True)
 st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭")
 # In your image search function
-if "Abraham" in query or "Isaac" or "Moriah":
-    # force biblical style + block list
-    negative_prompt = "modern, suitcase, forest, Las Meninas, Spanish, dog, palace"
-    prompt = f"Biblical illustration, Genesis, {query}, ancient Hebrew, desert, altar, ram, angels, dramatic light -- accurate"
-    # Use your image_gen model not pollinations fallback
+# Fix biblical search
+user_input = query if 'query' in locals() else search_query if 'search_query' in locals() else ""
+lower_q = user_input.lower()
+
+if any(name in lower_q for name in ["abraham", "isaac", "moriah", "lot", "sodom"]):
+    negative_prompt = "modern, suitcase, forest, Las Meninas, Spanish royal, dog, palace, blurry"
+    image_prompt = f"Bible illustration, {user_input}, ancient Israel, desert mountain, accurate, dramatic sunrise light"
+else:
+    image_prompt = user_input
+    negative_prompt = ""
