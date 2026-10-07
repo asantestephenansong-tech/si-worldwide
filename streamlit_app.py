@@ -109,3 +109,9 @@ Share on WhatsApp 📲
 </a>
 """, unsafe_allow_html=True)
 st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭")
+# In your image search function
+if "Abraham" in query or "Isaac" or "Moriah":
+    # force biblical style + block list
+    negative_prompt = "modern, suitcase, forest, Las Meninas, Spanish, dog, palace"
+    prompt = f"Biblical illustration, Genesis, {query}, ancient Hebrew, desert, altar, ram, angels, dramatic light -- accurate"
+    # Use your image_gen model not pollinations fallback
