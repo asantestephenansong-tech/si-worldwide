@@ -111,12 +111,3 @@ Share on WhatsApp 📲
 st.caption("© 2026 SI Worldwide | Founder from Ghana 🇬🇭")
 # In your image search function
 # Fix biblical search
-user_input = query if 'query' in locals() else search_query if 'search_query' in locals() else ""
-lower_q = user_input.lower()
-
-if any(name in lower_q for name in ["abraham", "isaac", "moriah", "lot", "sodom"]):
-    negative_prompt = "modern, suitcase, forest, Las Meninas, Spanish royal, dog, palace, blurry"
-    image_prompt = f"Bible illustration, {user_input}, ancient Israel, desert mountain, accurate, dramatic sunrise light"
-else:
-    image_prompt = user_input
-    negative_prompt = ""
