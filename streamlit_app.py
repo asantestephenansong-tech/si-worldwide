@@ -29,8 +29,8 @@ def get_anyone_photo(query):
         url = "https://image.pollinations.ai/prompt/Angels pulling Lot family from Sodom fire sulfur, wife pillar salt?width=800&nologo=true"
         return url, "Sodom - When Mercy Runs Out"
     # --- END FIX ---
-
-    try:
+        
+      try:
         search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={safe_q}&format=json"
         r = requests.get(search_api, timeout=6)
         results = r.get("query",{}).get("search",[])
