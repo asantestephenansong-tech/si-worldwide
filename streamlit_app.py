@@ -11,14 +11,31 @@ except:
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 def get_anyone_photo(query):
     q = query.strip()
     low = q.lower()
     safe_q = low.replace("girls","young women")
-    if any(x in low for x in ["nude","naked","sex","porn"]):
-        return None, "Cannot provide nude images."
+    if any(x in low for x in ["nude","naked","sex"]):
+        return None, "Cannot provide nude image"
+
+    # --- FIX: Biblical override ---
+    if "abraham" in low and "feet" in low:
+        url = "https://image.pollinations.ai/prompt/Biblical scene Abraham washing angels feet at Mamre oak, basin water, ancient tent, middle eastern, realistic painting?width=800&nologo=true"
+        return url, "Abraham washing angels' feet - Genesis 18 (realistic)"
+    if "isaac" in low and ("wood" in low or "moriah" in low):
+        url = "https://image.pollinations.ai/prompt/Isaac carrying wood up Mount Moriah with Abraham, ram in thicket, sunrise, Sodom smoke valley behind, biblical?width=800&nologo=true"
+        return url, "Mount Moriah"
+    if "sodom" in low:
+        url = "https://image.pollinations.ai/prompt/Angels pulling Lot family from Sodom fire sulfur, wife pillar salt?width=800&nologo=true"
+        return url, "Sodom - When Mercy Runs Out"
+    # --- END FIX ---
+
     try:
+        search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={safe_q}&format=json"
+        r = requests.get(search_api, timeout=6)
+        results = r.get("query",{}).get("search",[])
+        if results:
+
         search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(q)}&format=json&srlimit=1"
         r = requests.get(search_api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
         results = r.get("query",{}).get("search",[])
