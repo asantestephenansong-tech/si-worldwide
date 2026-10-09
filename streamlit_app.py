@@ -2,93 +2,100 @@ import streamlit as st
 from groq import Groq
 import urllib.parse, re, requests
 
-st.set_page_config(page_title="SI Worldwide", page_icon="🌍", layout="centered")
-
+st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Add GROQ_API_KEY in Secrets")
-    st.stop()
+st.error("Add GROQ_API_KEY")
+st.stop()
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.session_state.messages = []
 
 def get_anyone_photo(query):
-    q = query.strip()
-    low = q.lower()
-    safe_q = low.replace("girls","young women")
-    if any(x in low for x in ["nude","naked","sex","porn"]):
-        return None, "Cannot provide nude image"
+q = query.strip()
+low = q.lower()
+safe_q = low.replace("girls","young women")
+if any(x in low for x in ["nude","naked","sex","porn"]):
+return None, "Cannot provide nude images."
+try:
+search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(q)}&format=json&srlimit=1"
+r = requests.get(search_api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
+results = r.get("query",{}).get("search",[])
+if results:
+title = results[0]["title"]
+thumb_api = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=800"
+r2 = requests.get(thumb_api, timeout=6, headers={"User-Agent":"Mozilla/5.0"}).json()
+for p in r2.get("query",{}).get("pages",{}).values():
+if "thumbnail" in p:
+return p["thumbnail"]["source"], f"Real photo of {title} - Wikipedia"
+except: pass
+prompt = f"real photograph of {safe_q}, fully clothed, professional, 8k"
+url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=800&height=600&nologo=true&model=turbo&safe=true&seed={abs(hash(safe_q))%9999}"
+return url, f"Photo of {q.title()}"
 
-    # --- BIBLICAL FIX ---
-    if "abraham" in low and "feet" in low:
-        url = "https://image.pollinations.ai/prompt/Biblical scene Abraham washing angels feet with water basin at Mamre oak trees, ancient middle eastern tent, realistic painting?width=800&height=600&nologo=true&seed=101"
-        return url, "Abraham washing angels feet - Genesis 18:4"
-    if "isaac" in low and ("wood" in low or "moriah" in low):
-        url = "https://image.pollinations.ai/prompt/Isaac carrying wood up Mount Moriah with Abraham, ram in thicket thorns, Sodom smoke valley behind, dramatic sunrise, biblical realistic?width=800&height=600&nologo=true&seed=102"
-        return url, "Mount Moriah - God will provide Himself"
-    if "machpelah" in low or "cave" in low:
-        url = "https://image.pollinations.ai/prompt/Abraham buying cave of Machpelah from Ephron Hittites, counting silver shekels at city gate, ancient Canaan?width=800&height=600&nologo=true&seed=103"
-        return url, "Cave of Machpelah - Full Price"
-    if "sodom" in low:
-        url = "https://image.pollinations.ai/prompt/Angels rescuing Lot from burning Sodom fire and brimstone?width=800&height=600&nologo=true&seed=104"
-        return url, "Sodom - When Mercy Runs Out"
+def answer_any(question):
+models = ["llama-3.3-70b-versatile","llama-3.1-8b-instant","openai/gpt-oss-120b"]
+# FORCE 2026 TRUE FACTS - Models are outdated, so we override!
+system = """Current date is May 2026. You MUST use these TRUE 2026 facts, never old info:
 
-    try:
-        search_api = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(safe_q)}&format=json&srlimit=3"
-        r = requests.get(search_api, timeout=6).json()
-        results = r.get("query",{}).get("search",[])
-        if results:
-            title = results[0]["title"]
-            page_api = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=600"
-            pr = requests.get(page_api, timeout=6).json()
-            pages = pr.get("query",{}).get("pages",{})
-            for pid in pages:
-                if "thumbnail" in pages[pid]:
-                    return pages[pid]["thumbnail"]["source"], title
-    except:
-        pass
-    return None, "No image found"
+• USA President: Donald Trump (47th President, inaugurated Jan 20 2025, won 2024 election). VP: JD Vance. NOT Biden.
+• Ghana President: John Dramani Mahama (since Jan 7 2025)
+• Pope: Pope Leo XIV (Robert Prevost), elected May 8 2025. Pope Francis died April 21 2025.
+• UK PM: Keir Starmer
+• Kylian Mbappe: Real Madrid (since July 2024)
+• Messi: Inter Miami, Ronaldo: Al-Nassr
+• Russia-Ukraine war still ongoing in 2026, Israel-Gaza conflict, Sudan civil war.
 
-st.title("🌍 SI Worldwide")
-st.caption("Evening Class - Biblical AI")
+If asked about president/pope, use above. Be short and exact."""
+
+for model in models:
+try:
+r = client.chat.completions.create(
+model=model,
+messages=[{"role":"system","content":system},{"role":"user","content":question}],
+temperature=0.1, max_tokens=800
+)
+ans = r.choices[0].message.content
+if ans and len(ans)>5:
+return ans
+except: continue
+return "Try asking again more specifically."
+
+st.title("SI Worldwide 🌍")
+st.caption("V10.2 - 2026 Real Facts Fixed")
 
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-        if "image" in m and m["image"]:
-            st.image(m["image"], caption=m.get("cap",""))
+with st.chat_message(m["role"]):
+if m.get("type") == "image":
+st.image(m["content"], caption=m.get("caption",""), use_container_width=True)
+else:
+st.markdown(m["content"])
 
-prompt = st.text_input("Ask here:", placeholder="Picture Abraham washing angels feet", key="fix")
-send = st.button("Send ➤")
-if send and prompt:
-    st.session_state.messages.append({"role":"user","content":prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+st.divider()
+with st.form("chat_form", clear_on_submit=True):
+txt = st.text_input("Ask", placeholder="Who is US president, Pope, picture of anyone...")
+ok = st.form_submit_button("Send ➤", use_container_width=True)
 
-    img_url, cap = None, ""
-    if "picture" in prompt.lower() or "image" in prompt.lower() or "photo" in prompt.lower():
-        img_url, cap = get_anyone_photo(prompt)
-
-    try:
-        sys_prompt = "You are SI Worldwide Evening Class teacher, explain Bible Genesis with Accra application."
-        resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role":"system","content":sys_prompt},{"role":"user","content":prompt}],
-            temperature=0.7,
-            max_tokens=800
-        )
-        answer = resp.choices[0].message.content
-    except Exception as e:
-        answer = f"AI error: {e}"
-
-    with st.chat_message("assistant"):
-        st.markdown(answer)
-        if img_url:
-            st.image(img_url, caption=cap)
-
-    msg = {"role":"assistant","content":answer}
-    if img_url:
-        msg["image"]=img_url
-        msg["cap"]=cap
-    st.session_state.messages.append(msg)
+if ok and txt.strip():
+q = txt.strip()
+low = q.lower()
+if st.session_state.messages and st.session_state.messages[-1].get("role")=="user" and st.session_state.messages[-1]["content"]==q:
+st.stop()
+st.session_state.messages.append({"role":"user","content":q})
+is_pic = any(w in low for w in ["picture","photo","image","draw","show"])
+if any(w in low for w in ["who is","what is","which","what about","how","when","where"]):
+if not low.strip().startswith(("picture","photo","image")):
+is_pic=False
+if low.strip().startswith(("picture","photo","image")):
+is_pic=True
+if is_pic:
+clean = re.sub(r'picture of a|picture of|photo of|image of|picture|photo|image|draw|show me', '', low, flags=re.I).strip()
+if not clean: clean=q
+if "mbape" in clean: clean="Kylian Mbappe"
+url, cap = get_anyone_photo(clean)
+st.session_state.messages.append({"role":"assistant","type":"image","content":url,"caption":cap})
+else:
+ans = answer_any(q)
+st.session_state.messages.append({"role":"assistant","content":ans})
+st.rerun()
