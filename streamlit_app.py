@@ -59,7 +59,9 @@ for m in st.session_state.messages:
         if "image" in m and m["image"]:
             st.image(m["image"], caption=m.get("cap",""))
 
-if prompt := st.chat_input("Ask - e.g., Picture Abraham washing angels feet"):
+prompt = st.text_input("Ask here:", placeholder="Picture Abraham washing angels feet", key="fix")
+send = st.button("Send ➤")
+if send and prompt:
     st.session_state.messages.append({"role":"user","content":prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
