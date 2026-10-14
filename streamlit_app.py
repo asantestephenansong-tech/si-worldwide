@@ -25,7 +25,7 @@ def ask(q):
     try:
         r=requests.post("https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization":f"Bearer {k}","Content-Type":"application/json"},
-            json={"model":"llama-3.1-8b-instant","messages":[{"role":"system","content":"You are SI Worldwide AI"},{"role":"user","content":clean(q)}],"temperature":0.7,"max_tokens":1024},timeout=30)
+            json={"model":"openai/gpt-oss-20b"},"messages":[{"role":"system","content":"You are SI Worldwide AI"},{"role":"user","content":clean(q)}],"temperature":0.7,"max_tokens":1024},timeout=30)
         if r.status_code==200:
             return r.json()["choices"][0]["message"]["content"]
         return f"Groq error {r.status_code}: {r.text[:200]}"
