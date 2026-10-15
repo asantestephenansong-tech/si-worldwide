@@ -4,7 +4,7 @@ st.markdown("<style>.stApp{background:#000} h1{color:#D4AF37!important;text-alig
 if os.path.exists("logo.png"):
  c1,c2,c3=st.columns([1,1.2,1])
  with c2: st.image("logo.png", use_container_width=True)
-st.markdown("<h1>STEPHEN'S INTELLIGENCE</h1><p style='text-align:center;color:#D4AF37'>V6.2 REAL PHOTOS FIXED</p>", unsafe_allow_html=True)
+st.markdown("<h1>STEPHEN'S INTELLIGENCE</h1><p style='text-align:center;color:#D4AF37'>V6.3 SMART REAL + AI</p>", unsafe_allow_html=True)
 
 def clean(t):
  try: return "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
@@ -23,28 +23,28 @@ def ask(q,h):
   return r.json()["choices"][0]["message"]["content"]
  except: return "Try again"
 
-HEADERS = {"User-Agent": "SI-Worldwide/6.2 (Ghana; stephen@example.com)"}
+HEADERS = {"User-Agent": "SI-Worldwide/6.3 Ghana"}
+NOT_PERSON_WORDS = ["pig","dog","cat","elephant","lion","tiger","chicken","goat","cow","rice","car","house","boys","girls","fighting","fight","a ","the ","picture","image","photo","boys fighting"]
 
 def get_real_photo(name):
  try:
-  name = name.strip()
+  name=name.strip()
+  # Skip if not a person name
+  low=name.lower()
+  for w in NOT_PERSON_WORDS:
+   if w in low: return None
+  if len(name.split())>4: return None
   search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name)}&format=json"
   sr = requests.get(search_url, headers=HEADERS, timeout=8).json()
   if not sr.get("query",{}).get("search"): return None
   title = sr["query"]["search"][0]["title"]
-  # Get image
+  # Must look like person page (avoid animals)
   sum_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(title)}"
   r = requests.get(sum_url, headers=HEADERS, timeout=8).json()
+  if r.get("type")!="standard": return None
   if "originalimage" in r: return r["originalimage"]["source"]
   if "thumbnail" in r: return r["thumbnail"]["source"]
-  # Fallback pageimages
-  img_url = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=1024"
-  jr = requests.get(img_url, headers=HEADERS, timeout=8).json()
-  pages = jr.get("query",{}).get("pages",{})
-  for pid in pages:
-   if "thumbnail" in pages[pid]: return pages[pid]["thumbnail"]["source"]
- except Exception as e:
-  print("WIKI ERROR", e)
+ except: pass
  return None
 
 def make_image(prompt):
@@ -54,13 +54,15 @@ def make_image(prompt):
   if low.startswith(w):
    p=p[len(w):].strip(); low=p.lower()
  if not p: p="beautiful landscape"
- # Try REAL for short prompts (person name)
- if len(p.split()) <= 5:
-  real = get_real_photo(p)
-  if real: return real
- # Fallback AI
- if "fight" in low: p="friendly debate"
- safe=urllib.parse.quote_plus(f"{p}, photorealistic, ultra detailed, 8k")
+ # SAFE rewrite for kids fighting
+ if "fight" in low:
+  p="two boys playing friendly soccer together smiling, joyful"
+  low=p.lower()
+ # Try REAL only for person names
+ real = get_real_photo(p)
+ if real: return real
+ # AI fallback
+ safe=urllib.parse.quote_plus(f"{p}, photorealistic, ultra detailed, 8k, cute, friendly")
  return f"https://image.pollinations.ai/prompt/{safe}?width=1024&height=1024&nologo=true&model=turbo&seed={random.randint(1,99999999)}"
 
 if "ch" not in st.session_state: st.session_state.ch=[]
@@ -68,16 +70,16 @@ for r,m in st.session_state.ch:
  if r=="u": st.chat_message("user").write(m)
  elif r=="a": st.chat_message("assistant").write(m)
  else:
-  try: st.chat_message("assistant").image(m, caption="SI V6.2 🎨 REAL")
+  try: st.chat_message("assistant").image(m, caption="SI V6.3")
   except: st.chat_message("assistant").markdown(f"![image]({m})")
 
-q=st.chat_input("Draw ANYONE (real photo) or ANYTHING (AI)...")
+q=st.chat_input("Try: Kwame Nkrumah OR a pig OR boys playing...")
 if q:
  ql=q.lower()
  is_img=any(w in ql for w in ["draw","image","picture","photo","generate","create","paint","show me","make a pic"])
  st.session_state.ch.append(("u",q))
  if is_img:
-  st.session_state.ch.append(("a",f"V6.2 Creating: {q} 🎨"))
+  st.session_state.ch.append(("a",f"V6.3 Creating: {q} 🎨"))
   st.session_state.ch.append(("i",make_image(q)))
  else:
   st.session_state.ch.append(("a",ask(q, st.session_state.ch)))
