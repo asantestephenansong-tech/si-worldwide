@@ -15,22 +15,19 @@ def get_key():
   return str(k).strip().replace('"','').replace("'","")
  except: return ""
 
-def ask(q):
+def ask(q, history):
  k=get_key()
  if not k.startswith("gsk_"): return "Add GROQ_API_KEY in Streamlit Secrets!"
  try:
+  msgs=[{"role":"system","content":"You are SI Worldwide. Give short clear answers in 2-4 sentences. No HTML tags. Remember conversation context."}]
+  for r,m in history[-4:]:
+   if r!="i":
+    msgs.append({"role":"user" if r=="u" else "assistant","content":m})
+  msgs.append({"role":"user","content":clean(q)})
   r=requests.post("https://api.groq.com/openai/v1/chat/completions",
    headers={"Authorization":f"Bearer {k}","Content-Type":"application/json"},
-   json={
-    "model":"openai/gpt-oss-20b",
-    "messages":[
-         "messages":[
-     {"role":"system","content":"You are SI Worldwide. Give short, clear answers in 2-4 sentences. No tables unless user asks. No HTML tags. Remember conversation context."},
-     *[{"role":"user" if r=="u" else "assistant","content":m} for r,m in st.session_state.ch[-4:] if r!="i"],
-     {"role":"user","content":clean(q)}
-    ],
-    "max_tokens":300
-   },timeout=30)
+   json={"model":"openai/gpt-oss-20b","messages":msgs,"max_tokens":300},
+   timeout=30)
   j=r.json()
   return j["choices"][0]["message"]["content"] if r.status_code==200 else f"Error: {j}"
  except Exception as e: return f"Error: {e}"
@@ -44,9 +41,12 @@ else: st.sidebar.error("❌ Add GROQ_API_KEY")
 if "ch" not in st.session_state: st.session_state.ch=[]
 q=st.chat_input("Ask anything...")
 if q:
+ a=ask(q, st.session_state.ch)
  st.session_state.ch.append(("u",q))
- a=ask(q); st.session_state.ch.append(("a",a))
- if any(w in q.lower() for w in ["image","draw","picture","photo"]): st.session_state.ch.append(("i",img_url(q)))
+ st.session_state.ch.append(("a",a))
+ if any(w in q.lower() for w in ["image","draw","picture","photo"]):
+  st.session_state.ch.append(("i",img_url(q)))
+ st.rerun()
 
 for r,m in st.session_state.ch:
  if r=="u": st.chat_message("user").write(m)
