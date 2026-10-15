@@ -45,8 +45,11 @@ def make_image(prompt):
  for w in ["image of","picture of","photo of","draw an image of","draw a","draw","generate an image of","generate image of","create an image of","create","show me","make a pic of"]:
   if p.lower().startswith(w): p=p[len(w):].strip()
  if not p: p="beautiful landscape"
- safe=urllib.parse.quote_plus(f"{p}, ultra detailed, 8k, cinematic, sharp focus")
- return f"https://image.pollinations.ai/prompt/{safe}?width=1024&height=1024&nologo=true&seed={random.randint(1,9999999)}&model=flux&enhance=true"
+ # BOOST for people & famous faces
+ if any(name in p.lower() for name in ["mbappe","messi","ronaldo","bellingham","saka","jesus","mohammed","god"]):
+  p = f"photorealistic portrait of {p}, highly detailed face, realistic, professional photo"
+ safe=urllib.parse.quote_plus(f"{p}, ultra detailed, 8k, cinematic, sharp focus, photorealistic")
+ return f"https://image.pollinations.ai/prompt/{safe}?width=1024&height=1024&nologo=true&seed={random.randint(1,9999999)}"
 
 if "ch" not in st.session_state: st.session_state.ch=[]
 
