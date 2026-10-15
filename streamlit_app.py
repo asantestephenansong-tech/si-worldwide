@@ -1,89 +1,115 @@
-import streamlit as st, requests, urllib.parse, random, unicodedata, os, datetime
-st.set_page_config(page_title="Stephen's Intelligence", page_icon="🌟", layout="centered")
-st.markdown("<style>.stApp{background:#000} h1{color:#D4AF37!important;text-align:center}</style>", unsafe_allow_html=True)
-if os.path.exists("logo.png"):
- c1,c2,c3=st.columns([1,1.2,1])
- with c2: st.image("logo.png", use_container_width=True)
-st.markdown("<h1>STEPHEN'S INTELLIGENCE</h1><p style='text-align:center;color:#D4AF37'>V7.0 FINAL</p>", unsafe_allow_html=True)
+import streamlit as st
+from groq import Groq
+import requests
+import time
+from gtts import gTTS
+import os
+import replicate
 
-def clean(t):
- try: return "".join(c for c in unicodedata.normalize("NFKD", t) if not unicodedata.combining(c))
- except: return t
-def get_key():
- try: return str(st.secrets.get("GROQ_API_KEY","")).strip().replace('"','')
- except: return ""
-def ask(q,h):
- k=get_key()
- today = datetime.date.today().strftime("%B %Y")
- system_prompt = f"You are Stephen's Intelligence, Ghana. Today is {today}. Mbappe=Real Madrid since June 2024. Use 2026 knowledge. If asked Bible age: Sarah died at 127 years old (Genesis 23:1). Short answers."
- m=[{"role":"system","content":system_prompt}]
- for r,msg in h[-6:]:
-  if r in ["u","a"]: m.append({"role":"user" if r=="u" else "assistant","content":msg})
- m.append({"role":"user","content":clean(q)})
- try:
-  r=requests.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization":f"Bearer {k}","Content-Type":"application/json"}, json={"model":"openai/gpt-oss-20b","messages":m,"max_tokens":500}, timeout=30)
-  return r.json()["choices"][0]["message"]["content"]
- except: return "Try again"
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="SI Worldwide V8.0", page_icon="🌍", layout="wide")
 
-HEADERS = {"User-Agent": "SI-Worldwide/7.0 Ghana"}
-BIBLE_WORDS = ["bible","abraham","isaac","jacob","joseph","moses","david","goliath","samson","daniel","solomon","esther","ruth","mary","peter","paul","adam","eve","noah","jesus","christ","jonah","job","ark","golgotha","calvary","saul","joshua","sarah","sara","maria","lazarus","martha"]
+# --- API KEYS (from secrets) ---
+GROQ_KEY = st.secrets["GROQ_API_KEY"]
+HF_KEY = st.secrets.get("HF_API_KEY", "")
+REPLICATE_KEY = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-def get_wiki_photo(name):
- try:
-  search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(name)}&format=json"
-  sr = requests.get(search_url, headers=HEADERS, timeout=10).json()
-  if not sr.get("query",{}).get("search"): return None
-  title = sr["query"]["search"][0]["title"]
-  img_url = f"https://en.wikipedia.org/w/api.php?action=query&titles={urllib.parse.quote(title)}&prop=pageimages&format=json&pithumbsize=1024"
-  jr = requests.get(img_url, headers=HEADERS, timeout=10).json()
-  pages = jr.get("query",{}).get("pages",{})
-  for pid in pages:
-   if "thumbnail" in pages[pid]: return pages[pid]["thumbnail"]["source"]
- except: pass
- return None
+client = Groq(api_key=GROQ_KEY)
 
-def make_image(prompt):
- p=clean(prompt).strip()
- low=p.lower()
- for w in ["picture of","image of","photo of","draw an image of","draw a","draw","generate an image of","create an image of","create","show me","make a pic of","bible story of","story of"]:
-  if low.startswith(w):
-   p=p[len(w):].strip(); low=p.lower()
- if not p: p="beautiful landscape"
- is_bible = any(b in low for b in BIBLE_WORDS)
- if is_bible:
-  safe_p = p.replace("crucified","on the cross at Golgotha")
-  if "cross" in low and "jesus" in low:
-   biblical_prompt = f"reverent biblical painting of Jesus Christ on the cross at Golgotha, three crosses on hill, ancient Jerusalem sunset, holy reverent not graphic, oil painting cinematic 8k"
-  elif "david" in low and "goliath" in low:
-   biblical_prompt = f"epic biblical scene David young shepherd boy facing giant Goliath warrior with spear and shield, Valley of Elah, David with sling, cinematic dramatic light, 8k"
-  else:
-   biblical_prompt = f"epic biblical movie scene of {safe_p}, ancient Israel middle eastern people biblical robes, dramatic holy light, reverent detailed oil painting 8k"
-  safe=urllib.parse.quote_plus(biblical_prompt)
-  return f"https://image.pollinations.ai/prompt/{safe}?width=1024&height=1024&nologo=true&model=turbo&seed={random.randint(1,99999999)}"
- real = get_wiki_photo(p)
- if real: return real
- safe=urllib.parse.quote_plus(f"{p}, photorealistic real photo 8k")
- return f"https://image.pollinations.ai/prompt/{safe}?width=1024&height=1024&nologo=true&model=turbo&seed={random.randint(1,99999999)}"
+# --- HISTORY MEMORY ---
+if 'history' not in st.session_state:
+    st.session_state.history = []
+if 'last_image' not in st.session_state:
+    st.session_state.last_image = None
 
-if "ch" not in st.session_state: st.session_state.ch=[]
-for r,m in st.session_state.ch:
- if r=="u": st.chat_message("user").write(m)
- elif r=="a": st.chat_message("assistant").write(m)
- else:
-  try: st.chat_message("assistant").image(m, caption="SI V7.0")
-  except: st.chat_message("assistant").markdown(f"![image]({m})")
+# --- SIDEBAR - HISTORY ---
+with st.sidebar:
+    st.title("🌍 SI Worldwide V8.0")
+    st.markdown("**Always There - Super Powers**")
+    st.divider()
+    st.subheader("📜 History")
+    if not st.session_state.history:
+        st.caption("No images yet")
+    else:
+        for i, item in enumerate(reversed(st.session_state.history[-10:])):
+            st.image(item['image'], use_container_width=True)
+            st.caption(f"{item['prompt'][:60]}...")
+            st.divider()
 
-q=st.chat_input("Ask or Draw... V7.0 Smart")
-if q:
- ql=q.lower()
- # FIXED: Only if user says draw/picture/photo/image/generate/create/paint/show - NOT just "bible"
- is_img = any(w in ql for w in ["draw","picture","photo","image","generate","create","paint","show me","make a pic"])
- st.session_state.ch.append(("u",q))
- if is_img:
-  st.session_state.ch.append(("a",f"V7.0 Creating: {q} 🎨"))
-  st.session_state.ch.append(("i",make_image(q)))
- else:
-  # Text question - answer it!
-  st.session_state.ch.append(("a",ask(q, st.session_state.ch)))
- st.rerun()
-if st.button("Clear Chat ✨"): st.session_state.ch=[]; st.rerun()
+    if st.button("🗑️ Clear History"):
+        st.session_state.history = []
+        st.rerun()
+
+    st.divider()
+    st.caption("Uptime: 100% - Always There ✅")
+    st.caption("https://si-worldwide.streamlit.app")
+
+# --- MAIN ---
+st.title("🌍 Stephen's Intelligence Worldwide V8.0")
+st.caption("Samson Fixed ✅ | Football Jersey Fixed ✅ | Voice + History + Video")
+
+# --- VOICE INPUT ---
+col1, col2 = st.columns([3,1])
+with col1:
+    prompt = st.text_input("What do you want to create?", placeholder="e.g. Samson with long hair fighting lion, or Ronaldo in Portugal jersey")
+with col2:
+    st.write("")
+    st.write("")
+    voice_prompt = st.button("🎤 Talk")
+
+# --- V8.0 BIBLE & JERSEY FIX ENGINE (FROM V7.0) ---
+def enhance_prompt(user_prompt):
+    system = """
+    You are SI Prompt Enhancer V8.0.
+    RULES:
+    1. If prompt mentions SAMSON: ALWAYS add "long hair, ancient Israelite, muscular, biblical"
+    2. If prompt mentions DAVID: ALWAYS add "young shepherd boy, no armor, sling"
+    3. If prompt mentions FOOTBALL PLAYER + JERSEY: ALWAYS use correct country/club jersey. e.g. "Ronaldo Portugal jersey" -> "Cristiano Ronaldo wearing Portugal national team jersey red green"
+    4. Add "ultra detailed, 8k, cinematic"
+    Return ONLY enhanced prompt.
+    """
+    response = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+    return response.choices[0].message.content
+
+# --- GENERATE ---
+if st.button("✨ Generate Image", type="primary", use_container_width=True) and prompt:
+    with st.spinner("SI is creating..."):
+        enhanced = enhance_prompt(prompt)
+        st.write(f"**Enhanced:** {enhanced}")
+
+        # HuggingFace FLUX (your current engine)
+        API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+        headers = {"Authorization": f"Bearer {HF_KEY}"}
+        response = requests.post(API_URL, headers=headers, json={"inputs": enhanced})
+
+        if response.status_code == 200:
+            # Save image
+            with open("output.png", "wb") as f:
+                f.write(response.content)
+
+            st.image("output.png", caption=enhanced)
+            st.session_state.last_image = "output.png"
+
+            # Add to history
+            st.session_state.history.append({"prompt": prompt, "image": "output.png", "enhanced": enhanced})
+
+            # Voice output
+            tts = gTTS(f"Created: {prompt}", lang='en')
+            tts.save("voice.mp3")
+            st.audio("voice.mp3")
+            st.success("Image created + Voice + Saved to History!")
+        else:
+            st.error(f"Error: {response.text}")
+
+# --- V8.0 NEW: VIDEO BUTTON ---
+if st.session_state.last_image:
+    st.divider()
+    st.subheader("🎬 Super Power: Make Video")
+    if st.button("Animate Last Image to 5s Video"):
+        if not REPLICATE_KEY:
