@@ -77,10 +77,9 @@ if q:
 
  st.session_state.ch.append(("u",q))
 
- if is_image:
-  # Answer + Image
-  txt = ask(f"Briefly describe: {q} in 1 sentence", st.session_state.ch)
-  st.session_state.ch.append(("a",txt))
+  if is_image:
+  # Direct image - no filter, no Groq block
+  st.session_state.ch.append(("a", f"Generating image of: {q} 🎨"))
   st.session_state.ch.append(("i",make_image(q)))
  else:
   # Text only - obeys exactly
