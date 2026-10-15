@@ -24,7 +24,9 @@ def ask(q):
    json={
     "model":"openai/gpt-oss-20b",
     "messages":[
-     {"role":"system","content":"You are SI Worldwide. Give short, clear answers in 2-4 sentences. No tables unless user asks. No HTML tags like <br>. Be simple like explaining to a friend."},
+         "messages":[
+     {"role":"system","content":"You are SI Worldwide. Give short, clear answers in 2-4 sentences. No tables unless user asks. No HTML tags. Remember conversation context."},
+     *[{"role":"user" if r=="u" else "assistant","content":m} for r,m in st.session_state.ch[-4:] if r!="i"],
      {"role":"user","content":clean(q)}
     ],
     "max_tokens":300
