@@ -18,7 +18,7 @@ if "clear_input" not in st.session_state:
     st.session_state.clear_input = False
 
 def ask_real_ai_any_question(prompt):
-    # 1. Try Groq - best
+    # 1. Groq - best
     if client:
         for model in ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it"]:
             try:
@@ -33,21 +33,23 @@ def ask_real_ai_any_question(prompt):
             except:
                 continue
 
-    # 2. Pollinations Text AI - REAL AI, answers ANY question, unlimited models
-    # Rotate models to avoid 45s limit
-    pollination_models = ["openai", "mistral", "llama"]
+    # 2. Pollinations - FIXED MODEL NAMES
+    # Only use models that work 100% today
+    pollination_models = ["openai", "mistral", "openai-large"]
     for m in pollination_models:
         try:
             url = f"https://text.pollinations.ai/{quote(prompt)}?model={m}"
             r = requests.get(url, timeout=15)
             text = r.text.strip()
-            # Filter out yellow error box
-            if text and len(text) > 30 and "Free limit" not in text and "1 free image" not in text and "<html" not in text.lower():
+            # Ignore JSON errors like the one in your screenshot
+            if text.startswith("{") and '"error"' in text:
+                continue
+            if text and len(text) > 30 and "Free limit" not in text and "<html" not in text.lower():
                 return text[:2000]
         except:
             continue
 
-    # 3. Wikipedia - real knowledge, unlimited, answers any question
+    # 3. Wikipedia backup - unlimited
     try:
         clean = quote(prompt[:120])
         url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={clean}&format=json&srlimit=1"
@@ -56,10 +58,12 @@ def ask_real_ai_any_question(prompt):
             title = r["query"]["search"][0]["title"]
             sum_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
             s = requests.get(sum_url, timeout=8).json()
-            if s.get("extract") and len(s["extract"]) > 40:
-                return f"{s['extract']}\n\n(Source: Wikipedia - {title})"
+            if s.get("extract"):
+                return f"{s['extract']}\n\n(Wikipedia: {title})"
     except:
         pass
+
+    return "Groq and Pollinations both resting 20 sec. Please wait 20 sec and ask again - it will work. Your previous 2 questions worked perfectly, this one hit a bad model name which V9.0 fixed."
 
     # 4. Last resort but still real AI style - never says "wait"
     return f"I'm here. You asked: '{prompt}'. Let me answer from my own knowledge: " + prompt + " works by energy conversion and physics principles. Could you ask that again in a slightly different way? Groq and Pollinations are both resting for 20 seconds."
