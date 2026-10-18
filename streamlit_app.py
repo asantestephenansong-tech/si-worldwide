@@ -5,13 +5,15 @@ import random, time
 
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 st.title("🌍 SI Worldwide AI")
-st.caption("V8.3 - No more limit error")
+st.caption("V8.4 - 45s limit fixed")
 
 GROQ_KEY = st.secrets.get("GROQ_API_KEY", "")
 client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "last_image_time" not in st.session_state:
+    st.session_state.last_image_time = 0
 if "clear_input" not in st.session_state:
     st.session_state.clear_input = False
 
@@ -26,37 +28,25 @@ def ask_fast(prompt):
             return chat.choices[0].message.content
         except:
             pass
-    # 3 text backups
-    for url in [
-        f"https://text.pollinations.ai/{prompt}?model=openai",
-        f"https://text.pollinations.ai/{prompt}",
-    ]:
-        try:
-            r = requests.get(url, timeout=20)
-            if r.status_code == 200 and "Free limit" not in r.text and len(r.text) > 20:
-                return r.text[:1500]
-        except:
-            continue
-    return "⏳ Free AI is busy (too many users on Streamlit). Wait 2 minutes and try again - it auto-fixes!"
+    try:
+        r = requests.get(f"https://text.pollinations.ai/{prompt}", timeout=20)
+        if "Free limit" not in r.text and len(r.text) > 20:
+            return r.text[:1500]
+    except:
+        pass
+    return "⏳ Text limit, wait 30 sec and retry."
 
 def make_image_smart(prompt):
-    # Try 4 different image URLs
+    # Enforce Pollinations rule
+    now = time.time()
+    elapsed = now - st.session_state.last_image_time
+    if elapsed < 50:  # 50 sec to be safe
+        return f"WAIT_{int(50-elapsed)}"
+    
     seed = random.randint(1, 999999)
-    urls = [
-        f"https://image.pollinations.ai/prompt/{prompt}?width=768&height=768&nologo=true&seed={seed}&model=turbo",
-        f"https://image.pollinations.ai/prompt/{prompt}?width=768&height=768&seed={seed+1}",
-        f"https://pollinations.ai/p/{prompt}?width=768&height=768&seed={seed}",
-    ]
-    for u in urls:
-        try:
-            # Check if URL returns image, not limit page
-            r = requests.head(u, timeout=10)
-            if r.status_code == 200:
-                return u
-        except:
-            pass
-    # If all fail, return first anyway + we will show nice message
-    return urls[0]
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width=768&height=768&nologo=true&seed={seed}&model=turbo"
+    st.session_state.last_image_time = now
+    return url
 
 # Show history
 for role, msg in st.session_state.history:
@@ -64,14 +54,13 @@ for role, msg in st.session_state.history:
         st.markdown(f"🔴 **You:** {msg}")
     else:
         if msg.startswith("http"):
-            st.markdown("🟠 **SI V8.3:**")
-            try:
-                st.image(msg, use_container_width=True)
-            except:
-                st.warning("⏳ Image limit reached, wait 1 min and tap Send again")
-                st.markdown(f"[Try open image]({msg})")
+            st.markdown("🟠 **SI V8.4:**")
+            st.image(msg, use_container_width=True)
+        elif msg.startswith("WAIT_"):
+            secs = msg.split("_")[1]
+            st.warning(f"⏳ Please wait {secs} seconds. Pollinations allows 1 image per 45s. Try again after.")
         else:
-            st.markdown(f"🟠 **SI V8.3:** {msg}")
+            st.markdown(f"🟠 **SI V8.4:** {msg}")
 
 st.divider()
 
@@ -79,7 +68,7 @@ if st.session_state.clear_input:
     st.session_state.clear_input = False
     st.session_state.qinput = ""
 
-q = st.text_input("Ask...", placeholder="Ask or picture", key="qinput")
+q = st.text_input("Ask...", placeholder="Ask anything or ask for picture", key="qinput")
 c1,c2 = st.columns([4,1])
 with c1:
     send = st.button("Send ✨", type="primary", use_container_width=True)
@@ -95,14 +84,12 @@ if send and q and q.strip():
     st.session_state.history.append(("u", user_q))
     st.session_state.clear_input = True
     
-    is_draw = any(x in user_q.lower() for x in ["picture","draw","image","photo","mouse","messi","vulture"])
+    is_draw = any(x in user_q.lower() for x in ["picture","draw","image","photo","messi","jackson","mouse"])
     
     if is_draw:
-        with st.spinner("Drawing..."):
-            img = make_image_smart(user_q)
-            st.session_state.history.append(("a", img))
+        img = make_image_smart(user_q)
+        st.session_state.history.append(("a", img))
     else:
-        with st.spinner("Thinking..."):
-            ans = ask_fast(user_q)
-            st.session_state.history.append(("a", ans))
+        ans = ask_fast(user_q)
+        st.session_state.history.append(("a", ans))
     st.rerun()
