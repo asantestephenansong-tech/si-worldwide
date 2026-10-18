@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 from groq import Groq
-import time
 
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 st.title("🌍 SI Worldwide AI")
@@ -11,44 +10,49 @@ client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 
 if "history" not in st.session_state:
     st.session_state.history = []
+if "clear_input" not in st.session_state:
+    st.session_state.clear_input = False
 
-# --- FAST FUNCTIONS ---
 def ask_fast(prompt):
-    try:
-        chat = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[{"role":"user","content":prompt}],
-            max_tokens=200
-        )
-        return chat.choices[0].message.content
-    except:
+    if client:
         try:
-            r = requests.get(f"https://text.pollinations.ai/{prompt}", timeout=10)
-            return r.text[:500]
-        except:
-            return "Network slow, try again."
+            chat = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[{"role":"user","content":f"Answer short: {prompt}"}],
+                max_tokens=300
+            )
+            return chat.choices[0].message.content
+        except Exception as e:
+            pass
+    try:
+        r = requests.get(f"https://text.pollinations.ai/{prompt}", timeout=15)
+        if r.status_code == 200:
+            return r.text[:800]
+    except:
+        pass
+    return "I could not connect. Check GROQ_API_KEY in Secrets, then Reboot app."
 
 def make_image_fast(prompt):
-    try:
-        url = f"https://image.pollinations.ai/prompt/{prompt}?width=512&height=512&nologo=true"
-        return url
-    except:
-        return None
+    return f"https://image.pollinations.ai/prompt/{prompt}?width=768&height=768&nologo=true&seed={hash(prompt)%1000}"
 
-# --- SHOW CHAT ---
+# Show chat
 for role, msg in st.session_state.history:
     if role == "u":
         st.markdown(f"🔴 **You:** {msg}")
     else:
         if msg.startswith("http"):
-            st.markdown("🟠 **SI V8.0:** Here is your picture:")
+            st.markdown("🟠 **SI V8.1:** Here is your picture:")
             st.image(msg)
         else:
-            st.markdown(f"🟠 **SI V8.0:** {msg}")
+            st.markdown(f"🟠 **SI V8.1:** {msg}")
 
 st.divider()
 
-# --- INPUT BAR ---
+# INPUT - THIS IS THE FIX FOR YOUR SCREENSHOT
+if st.session_state.clear_input:
+    st.session_state.clear_input = False
+    st.session_state.qinput = ""
+
 q = st.text_input("Ask...", placeholder="Ask anything", key="qinput")
 c1,c2 = st.columns([4,1])
 with c1:
@@ -58,21 +62,16 @@ with c2:
 
 if clr:
     st.session_state.history = []
-    if "qinput" in st.session_state:
-        del st.session_state["qinput"]
+    st.session_state.qinput = ""
     st.rerun()
 
-if send and q:
-    # 1. Save question
-    st.session_state.history.append(("u", q))
-    user_q = q
+if send and q and q.strip():
+    user_q = q.strip()
+    st.session_state.history.append(("u", user_q))
+    # CLEAR BAR NOW - BEFORE ANSWERING
+    st.session_state.clear_input = True
     
-    # 2. *** THIS FIXES YOUR PROBLEM: Clear the bar ***
-    if "qinput" in st.session_state:
-        del st.session_state["qinput"]
-    
-    # 3. Answer
-    is_draw = any(x in user_q.lower() for x in ["picture","draw","image","photo","messi","ronaldo"])
+    is_draw = any(x in user_q.lower() for x in ["picture","draw","image","photo","vulture","messi","ronaldo"])
     
     if is_draw:
         with st.spinner("Drawing..."):
@@ -83,5 +82,4 @@ if send and q:
             ans = ask_fast(user_q)
             st.session_state.history.append(("a", ans))
     
-    # 4. Reload with empty bar
     st.rerun()
