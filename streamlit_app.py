@@ -37,11 +37,11 @@ if "history" not in st.session_state:
     st.session_state.history = []
 
 def ask_any_question(prompt):
-    # STREAMING - NO TIMEOUT EVER
     if client:
         try:
+            # Use current Groq models that exist in 2026
             stream = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",  # this one always exists
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     *st.session_state.history[-6:],
@@ -54,17 +54,34 @@ def ask_any_question(prompt):
             full_text = ""
             placeholder = st.empty()
             for chunk in stream:
-                content = chunk.choices[0].delta.content
-                if content:
-                    full_text += content
+                if chunk.choices[0].delta.content:
+                    full_text += chunk.choices[0].delta.content
                     placeholder.markdown(full_text + "▌")
             placeholder.markdown(full_text)
             return full_text
         except Exception as e:
-            return f"Groq error: {e}. Check your GROQ_API_KEY in Secrets."
+            # fallback to even faster model if 70b fails
+            try:
+                stream = client.chat.completions.create(
+                    model="llama3-8b-8192",
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    stream=True
+                )
+                full_text = ""
+                placeholder = st.empty()
+                for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        full_text += chunk.choices[0].delta.content
+                        placeholder.markdown(full_text + "▌")
+                placeholder.markdown(full_text)
+                return full_text
+            except Exception as e2:
+                return f"Groq error: {e2}. Check GROQ_API_KEY."
     else:
-        return "⚠️ GROQ_API_KEY missing. Add it in Manage app > Secrets > GROQ_API_KEY = 'gsk_...'"
-
+        return "⚠️ GROQ_API_KEY missing."
 def make_image(prompt):
     if is_blocked(prompt):
         st.error("❌ I can't generate images of real people like Messi, Shatta Wale, or children. Try: 'a football player celebrating' or 'a Ghanaian musician on stage'.")
