@@ -67,9 +67,10 @@ def gen_image_url(prompt):
     if is_blocked(prompt):
         return None
     enc = quote(prompt)
+    # Use new gen server + key
     key_part = f"&key={POLLEN_KEY}" if POLLEN_KEY else ""
-    return f"https://image.pollinations.ai/prompt/{enc}?nologo=true&safe=true{key_part}&seed={random.randint(1,999999)}"
-
+    # NEW endpoint - this respects sk_ key
+    return f"https://gen.pollinations.ai/image/{enc}?model=flux&nologo=true&safe=true{key_part}&seed={random.randint(1,999999)}"
 # Show history
 for role, content in st.session_state.history:
     with st.chat_message(role):
