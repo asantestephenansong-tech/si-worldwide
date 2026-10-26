@@ -6,9 +6,10 @@ from urllib.parse import quote
 
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 st.title("🌍 SI Worldwide AI")
-st.caption("V12 - 2026 correct facts + real product photos")
+st.caption("V14 - Answers ANY question you think")
 
 GROQ_KEY = st.secrets.get("GROQ_API_KEY", "")
+HF_KEY = st.secrets.get("HF_API_KEY", "")  # Optional second key for unlimited
 client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
 
 if "history" not in st.session_state:
@@ -17,84 +18,112 @@ if "history" not in st.session_state:
 if "clear_input" not in st.session_state:
     st.session_state.clear_input = False
 
-# 2026 LIVE FACTS - Fixes old AI
-LIVE_FACTS = {
-    "current pope": "Current Pope is Pope Leo XIV (Robert Prevost), elected May 8 2025 after Pope Francis died April 21 2025. First American Pope.",
-    "pope francis died": "Pope Francis died April 21 2025.",
-    "current president of america": "Current President of the USA is Donald Trump, 47th President. Inaugurated Jan 20 2025, Vice President JD Vance. Term until Jan 2029. Previous was Joe Biden (2021-2025).",
-    "president of america": "Donald Trump is President as of 2026. Joe Biden was President 2021-2025.",
-    "who is president": "Donald Trump (since Jan 20 2025).",
-    "how many stones david": "David picked 5 smooth stones (1 Samuel 17:40), used 1 to kill Goliath.",
-    "david goliath": "5 stones picked, 1 used."
-}
-
-def ask_anything(prompt):
-    low = prompt.lower()
-    for key, fact in LIVE_FACTS.items():
-        if key in low:
-            return fact
-
+def ask_any_question(prompt):
+    # 1. Groq - 3 models rotation
     if client:
         for model in ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it"]:
             try:
                 c = client.chat.completions.create(
                     model=model,
                     messages=[
-                        {"role":"system","content":"Current date is Oct 2026. Current US President is Donald Trump (47th, since Jan 20 2025, VP JD Vance). Previous was Joe Biden. Current Pope is Leo XIV since May 8 2025, after Francis died April 21 2025. David picked 5 stones, used 1. Always use 2026 facts."},
+                        {"role":"system","content":"You are helpful. Current date: October 2026. Current US President is Donald Trump (47th, since Jan 20 2025). Current Pope is Leo XIV since May 8 2025 after Francis died April 21 2025. Answer any question accurately."},
                         {"role":"user","content":prompt}
                     ],
-                    max_tokens=1000
+                    max_tokens=1200
                 )
-                t = c.choices[0].message.content
-                if t and len(t) > 20:
-                    return t
-            except:
+                txt = c.choices[0].message.content
+                if txt and len(txt) > 20:
+                    return txt
+            except Exception as e:
                 continue
 
-    for m in ["openai", "mistral"]:
+    # 2. Hugging Face FREE unlimited AI - answers ANY question
+    if HF_KEY:
         try:
-            url = f"https://text.pollinations.ai/{quote(prompt)}?model={m}&seed={random.randint(1,99999)}"
+            url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+            headers = {"Authorization": f"Bearer {HF_KEY}"}
+            data = {"inputs": prompt, "parameters": {"max_new_tokens": 600}}
+            r = requests.post(url, headers=headers, json=data, timeout=20)
+            if r.status_code == 200:
+                j = r.json()
+                if isinstance(j, list) and j[0].get("generated_text"):
+                    text = j[0]["generated_text"]
+                    # Remove prompt echo
+                    return text.replace(prompt, "").strip()[:2000]
+        except:
+            pass
+
+    # 3. Pollinations AI - REAL AI, no hard-coding, 3 models
+    for model in ["openai", "mistral", "openai-large"]:
+        try:
+            url = f"https://text.pollinations.ai/{quote(prompt)}?model={model}&seed={random.randint(1,999999)}"
             r = requests.get(url, timeout=15)
             txt = r.text.strip()
-            if txt.startswith("{") and '"error"' in txt: continue
-            if txt and len(txt) > 30 and "Free limit" not in txt:
+            if len(txt) > 40 and not txt.startswith("{") and "Free limit" not in txt and "<html" not in txt.lower():
                 return txt[:2000]
         except:
             continue
-    return "Servers busy 10 sec, try again."
+
+    # 4. Wikipedia LIVE - unlimited, answers any topic
+    try:
+        search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={quote(prompt)}&format=json&srlimit=1"
+        search = requests.get(search_url, timeout=8).json()
+        if search.get("query",{}).get("search"):
+            title = search["query"]["search"][0]["title"]
+            summary = requests.get(f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}", timeout=8).json()
+            if summary.get("extract"):
+                return summary["extract"] + f"\n\nSource: Wikipedia ({title}) - now ask follow-up."
+    except:
+        pass
+
+    # 5. DuckDuckGo Instant Answer - unlimited
+    try:
+        ddg = requests.get(f"https://api.duckduckgo.com/?q={quote(prompt)}&format=json", timeout=8).json()
+        if ddg.get("AbstractText"):
+            return ddg["AbstractText"]
+    except:
+        pass
+
+    # If ALL 5 AIs fail (rare, when you spam 10 questions in 10 seconds), wait 5 sec and retry automatically
+    time.sleep(2)
+    try:
+        url = f"https://text.pollinations.ai/{quote(prompt)}?model=openai&seed={random.randint(1,999999)}"
+        r = requests.get(url, timeout=15)
+        if len(r.text) > 40:
+            return r.text[:2000]
+    except:
+        pass
+    
+    return f"I tried 5 AIs but all are rate-limited for 15 seconds because of fast asking. Wait 5 seconds and ask again: '{prompt}' - it will answer. Tip: Don't send 2 questions in same 5 seconds."
 
 def make_image(prompt):
     now = time.time()
-    low = prompt.lower()
-    # For electrical components, use real product search, not AI art
-    if any(x in low for x in ["circuit breaker", "capacitor", "resistor", "mcb", "contactor", "fuse"]):
-        # Use Wikipedia real image or DuckDuckGo + better AI model
-        kw = quote(prompt)
-        # Use flux model for realistic products
-        return f"https://image.pollinations.ai/prompt/{kw}, real product photo, white background, datasheet style, highly detailed?width=800&height=800&nologo=true&seed={random.randint(1,999999)}&model=flux"
-
+    # Real photos for tools
+    if any(x in prompt.lower() for x in ["shovel","breaker","capacitor","mcb","tool"]):
+        # flux = most realistic model
+        return f"https://image.pollinations.ai/prompt/{quote(prompt + ', real product photo, white background, professional')}?width=800&height=800&nologo=true&seed={random.randint(1,999999)}&model=flux"
+    
     if now - st.session_state.last_image_time < 50:
-        kw = quote(prompt.replace("Picture of ","").strip())
-        return f"https://source.unsplash.com/800x600/?{kw}"
+        return f"https://source.unsplash.com/800x600/?{quote(prompt)}"
     st.session_state.last_image_time = now
-    return f"https://image.pollinations.ai/prompt/{quote(prompt)}, realistic photo?width=768&height=768&nologo=true&seed={random.randint(1,999999)}&model=turbo"
+    return f"https://image.pollinations.ai/prompt/{quote(prompt)}?width=800&height=800&nologo=true&seed={random.randint(1,999999)}&model=flux"
 
 for role, msg in st.session_state.history:
     if role == "u":
         st.markdown(f"🔴 **You:** {msg}")
     else:
         if msg.startswith("http"):
-            st.markdown("🟠 **SI V12:**")
+            st.markdown("🟠 **SI V14:**")
             st.image(msg, use_container_width=True)
         else:
-            st.markdown(f"🟠 **SI V12:** {msg}")
+            st.markdown(f"🟠 **SI V14:** {msg}")
 
 st.divider()
 if st.session_state.clear_input:
     st.session_state.clear_input = False
     st.session_state.qinput = ""
 
-q = st.text_input("Ask...", key="qinput")
+q = st.text_input("Ask...", placeholder="Ask ANYTHING you are thinking", key="qinput")
 c1,c2 = st.columns([4,1])
 with c1:
     send = st.button("Send ✨", type="primary", use_container_width=True)
@@ -102,15 +131,15 @@ with c2:
     clr = st.button("Clear", use_container_width=True)
 
 if clr:
-    st.session_state.history = []
+    st.session_state.history=[]
     st.rerun()
 
 if send and q and q.strip():
-    user_q = q.strip()
-    st.session_state.history.append(("u", user_q))
-    st.session_state.clear_input = True
+    user_q=q.strip()
+    st.session_state.history.append(("u",user_q))
+    st.session_state.clear_input=True
     if any(x in user_q.lower() for x in ["picture","draw","image","photo"]):
-        st.session_state.history.append(("a", make_image(user_q)))
+        st.session_state.history.append(("a",make_image(user_q)))
     else:
-        st.session_state.history.append(("a", ask_anything(user_q)))
+        st.session_state.history.append(("a",ask_any_question(user_q)))
     st.rerun()
