@@ -3,7 +3,20 @@ import requests
 from groq import Groq
 import random, time
 from urllib.parse import quote
+# SAFETY FILTER - to avoid ban
+BLOCKED_WORDS = ["school girl", "school boy", "mahama", "akufo", "trump", "biden", "pope", "nude", "sex", "kiss", "fight"]
+def is_blocked(prompt):
+    return any(w in prompt.lower() for w in BLOCKED_WORDS)
 
+# CURRENT INFO - fix old answers
+SYSTEM_PROMPT = """You are SI V14. Today is 2026.
+Current facts you MUST use:
+- Pope is Leo XIV (since May 2025), not Francis
+- US President is Donald Trump (since Jan 2025)
+- Ghana President is John Mahama (since Jan 2025)
+Never say you are Pollinations or Pollen.
+If user asks for picture of real person or child, say: 'Sorry, I cannot generate pictures of real people or children for safety.'
+"""
 st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
 st.title("🌍 SI Worldwide AI")
 st.caption("V14 - Answers ANY question you think")
