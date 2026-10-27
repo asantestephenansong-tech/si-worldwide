@@ -4,21 +4,23 @@ from groq import Groq
 import random
 from urllib.parse import quote
 
-# SAFETY + CURRENT INFO
-BLOCKED_WORDS = ["school girl", "school boy", "schoolboy", "schoolgirl", "messi", "ronaldo", "shatta wale", "stonebwoy", "sarkodie", "john mahama", "donald trump", "elon musk"]
+# SAFETY - only block children, not public figures
+BLOCKED_WORDS = ["school girl", "school boy", "schoolboy", "child porn", "nude child"]
 
 def is_blocked(prompt):
     p = prompt.lower()
-    return any(w in p for w in BLOCKED_WORDS) or "picture of" in p and any(name in p for name in ["messi","ronaldo","shatta","mahama","trump","musk","child","kid","boy","girl"])
+    # Only block child-related, don't block the word "picture"
+    return any(w in p for w in BLOCKED_WORDS)
 
-SYSTEM_PROMPT = """You are SI V14. Today is October 2026.
+SYSTEM_PROMPT = """You are SI V14. Today is October 2026
 Current facts you MUST use:
 - Pope is Leo XIV (since May 2025), not Francis
 - US President is Donald Trump (since Jan 2025)
 - Ghana President is John Mahama (since Jan 2025)
 - You are SI Worldwide AI built by Stephen Asante
 Never say you are Pollinations or Pollen.
-If user asks for picture of real person or child, refuse and offer generic alternative.
+If user asks for picture of a private child or non-public person, refuse. 
+For public figures like Elon Musk, Messi, Shatta Wale, Donald Trump, John Mahama - you CAN generate as AI illustration, but say 'This is an AI illustration, not a real photo'.
 Keep answers short, helpful, and friendly. Use same language as user.
 """
 
