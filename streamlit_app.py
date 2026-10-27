@@ -1,126 +1,104 @@
 import streamlit as st
 import requests
 from groq import Groq
-import random
-from urllib.parse import quote
+from datetime import datetime
 
-# SAFETY - only block children, not public figures
-BLOCKED_WORDS = ["school girl", "school boy", "schoolboy", "child porn", "nude child"]
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="SI Worldwide AI V14",
+    page_icon="🌍",
+    layout="centered"
+)
 
-def is_blocked(prompt):
+# --- GROQ CLIENT ---
+# Make sure GROQ_API_KEY is in Streamlit Secrets
+client = Groq(api_key=st.secrets.get("GROQ_API_KEY") or st.secrets.get("GROQ"))
+
+# --- FIXED MODEL (OLD ONE WAS DELETED) ---
+GROQ_MODEL = "llama-3.1-8b-instant"  # or "llama-3.3-70b-versatile"
+
+# --- SAFETY - Only block harmful, not pictures or public figures ---
+BLOCKED_WORDS = [
+    "child porn", "nude child", "sex with child",
+    "school girl nude", "school boy nude"
+]
+
+def is_blocked(prompt: str) -> bool:
     p = prompt.lower()
-    # Only block child-related, don't block the word "picture"
     return any(w in p for w in BLOCKED_WORDS)
 
-SYSTEM_PROMPT = """You are SI V14. Today is October 2026
+# --- SYSTEM PROMPT - FIXED ---
+SYSTEM_PROMPT = f"""You are SI Worldwide AI V14 built by Stephen Asante.
+Today is {datetime.now().strftime('%B %Y')}.
 Current facts you MUST use:
-- Pope is Leo XIV (since May 2025), not Francis
-- US President is Donald Trump (since Jan 2025)
-- Ghana President is John Mahama (since Jan 2025)
-- You are SI Worldwide AI built by Stephen Asante
-Never say you are Pollinations or Pollen.
-If user asks for picture of a private child or non-public person, refuse. 
-For public figures like Elon Musk, Messi, Shatta Wale, Donald Trump, John Mahama - you CAN generate as AI illustration, but say 'This is an AI illustration, not a real photo'.
-Keep answers short, helpful, and friendly. Use same language as user.
+- Pope is Leo XIV (since May 8, 2025), not Francis
+- US President is Donald Trump (since Jan 20, 2025)
+- Ghana President is John Mahama (since Jan 7, 2025)
+- Ghana Vice President is Jane Naana Opoku-Agyemang
+
+Rules:
+1. Never say you are Pollinations, Pollen, OpenAI, or Meta.
+2. You are SI Worldwide AI V14 - Answers ANY question you throw at me - No timeout.
+3. If user asks for picture of a PRIVATE child, refuse for safety.
+4. For public figures like Elon Musk, Messi, Shatta Wale, Donald Trump, John Mahama - you CAN generate as AI illustration. Say: 'This is an AI illustration, not a real photo.'
+5. Keep answers short, helpful, friendly. Use same language as user.
+6. Today in Ghana is {datetime.now().strftime('%A, %B %d, %Y')}.
 """
 
-st.set_page_config(page_title="SI Worldwide", page_icon="🌍")
-st.title("🌍 SI Worldwide AI")
-st.caption("V14 - Answers ANY question you throw at me - No timeout")
+# --- UI ---
+st.title("🌍 SI Worldwide AI V14")
+st.caption("Answers ANY question you throw at me - No timeout")
 
-# KEYS - THIS FIXES FREE LIMIT
-GROQ_KEY = st.secrets.get("GROQ_API_KEY", "")
-HF_KEY = st.secrets.get("HF_API_KEY", "")
-POLLEN_KEY = st.secrets.get("POLLEN_API_KEY", "")
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-client = Groq(api_key=GROQ_KEY) if GROQ_KEY else None
+# Show history
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        if msg.get("type") == "image":
+            st.image(msg["content"])
+        else:
+            st.markdown(msg["content"])
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+# --- CHAT INPUT ---
+if prompt := st.chat_input("Ask anything... picture of elon musk, etc"):
 
-def ask_any_question(prompt):
-    if client:
-        try:
-            # Use current Groq models that exist in 2026
-            stream = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",  # this one always exists
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    *st.session_state.history[-6:],
-                    {"role": "user", "content": prompt}
-                ],
-                stream=True,
-                max_tokens=1200,
-                temperature=0.7
-            )
-            full_text = ""
-            placeholder = st.empty()
-            for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    full_text += chunk.choices[0].delta.content
-                    placeholder.markdown(full_text + "▌")
-            placeholder.markdown(full_text)
-            return full_text
-        except Exception as e:
-            # fallback to even faster model if 70b fails
+    # Safety check
+    if is_blocked(prompt):
+        with st.chat_message("assistant"):
+            st.error("I can't generate that content for safety reasons. Try a public figure or educational topic.")
+        st.stop()
+
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Check if user wants picture
+    is_image_request = any(k in prompt.lower() for k in ["picture of", "image of", "generate image", "photo of", "draw"])
+
+    with st.chat_message("assistant"):
+        if is_image_request:
+            # Use Pollinations for images (free, no key needed)
+            # Clean prompt
+            safe_prompt = prompt.replace("picture of", "").replace("image of", "").strip()
+            image_url = f"https://image.pollinations.ai/prompt/{requests.utils.quote(safe_prompt)}?width=1024&height=1024&nologo=true&model=flux"
+            st.image(image_url, caption=f"AI illustration: {safe_prompt}")
+            st.caption("This is an AI illustration, not a real photo.")
+            st.session_state.messages.append({"role": "assistant", "type": "image", "content": image_url})
+        else:
+            # Text answer via Groq
             try:
-                stream = client.chat.completions.create(
-                    model="llama3-8b-8192",
+                completion = client.chat.completions.create(
+                    model=GROQ_MODEL,
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": prompt}
                     ],
-                    stream=True
+                    temperature=0.7,
+                    max_tokens=1000
                 )
-                full_text = ""
-                placeholder = st.empty()
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        full_text += chunk.choices[0].delta.content
-                        placeholder.markdown(full_text + "▌")
-                placeholder.markdown(full_text)
-                return full_text
-            except Exception as e2:
-                return f"Groq error: {e2}. Check GROQ_API_KEY."
-    else:
-        return "⚠️ GROQ_API_KEY missing."
-def make_image(prompt):
-    if is_blocked(prompt):
-        st.error("❌ I can't generate images of real people like Messi, Shatta Wale, or children. Try: 'a football player celebrating' or 'a Ghanaian musician on stage'.")
-        return None
-    
-    try:
-        encoded = quote(prompt[:200])
-        # Pollinations IMAGE only
-        url = f"https://image.pollinations.ai/prompt/{encoded}?nologo=true&private=true&enhance=true"
-        if POLLEN_KEY:
-            url += f"&key={POLLEN_KEY}"
-        return url
-    except Exception as e:
-        st.error(f"Image error: {e}")
-        return None
-
-# CHAT UI
-for msg in st.session_state.history:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-user_input = st.chat_input("Ask me anything...")
-
-if user_input:
-    # Check if image request
-    is_image = any(k in user_input.lower() for k in ["picture", "image", "draw", "generate", "photo"])
-
-    st.session_state.history.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    with st.chat_message("assistant"):
-        if is_image:
-            img_url = make_image(user_input)
-            if img_url:
-                st.image(img_url, caption=user_input)
-                st.session_state.history.append({"role": "assistant", "content": f"Image: {user_input}"})
-        else:
-            answer = ask_any_question(user_input)
-            st.session_state.history.append({"role": "assistant", "content": answer})
+                answer = completion.choices[0].message.content
+                st.markdown(answer)
+                st.session_state.messages.append({"role": "assistant", "type": "text", "content": answer})
+            except Exception as e:
+                st.error(f"Groq error: {e}. Check your API key and model name.")
